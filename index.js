@@ -1,5 +1,16 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
+const express = require('express');
+
+const app = express();
+
+app.get('/', (req, res) => {
+    res.send('Bot is alive 😈');
+});
+
+app.listen(3000, () => {
+    console.log('🌐 Web server running...');
+});
 
 const client = new Client({
     intents: [
@@ -12,8 +23,6 @@ const TOKEN = process.env.TOKEN;
 
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
-
-    // 👇 تشغيل نظام الرسائل
     startMessages(client);
 });
 
