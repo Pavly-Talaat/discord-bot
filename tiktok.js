@@ -4,7 +4,7 @@ const parser = new Parser();
 let lastVideo = null;
 
 async function checkTikTok(client) {
-    const channelId = "1487030131229855774";
+    const channelId = "1485793633268666418";
 
     const rssUrl = "https://rsshub.app/tiktok/user/pavly_ta";
 
