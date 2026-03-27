@@ -1,23 +1,31 @@
 const fs = require('fs');
 
+const DATA_FILE = 'levels.json';
+
 let users = {};
 
-if (fs.existsSync('levels.json')) {
-    users = JSON.parse(fs.readFileSync('levels.json'));
+function loadData() {
+    if (fs.existsSync(DATA_FILE)) {
+        try {
+            const data = fs.readFileSync(DATA_FILE, 'utf8');
+            users = JSON.parse(data || '{}');
+        } catch {
+            users = {};
+        }
+    }
 }
 
 function saveData() {
-    fs.writeFileSync('levels.json', JSON.stringify(users, null, 2));
+    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
+
+loadData();
 
 function handleXP(message) {
     const userId = message.author.id;
 
     if (!users[userId]) {
-        users[userId] = {
-            xp: 0,
-            level: 1
-        };
+        users[userId] = { xp: 0, level: 1 };
     }
 
     users[userId].xp += 10;
