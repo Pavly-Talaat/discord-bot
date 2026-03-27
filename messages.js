@@ -3,6 +3,7 @@ function startMessages(client) {
 
     let lastSentMorning = null;
     let lastSentEvening = null;
+    let lastSentTest = null;
 
     setInterval(() => {
         const now = new Date();
@@ -29,6 +30,12 @@ function startMessages(client) {
         if (hours === 21 && minutes === 0 && lastSentEvening !== today) {
             channel.send("🌙 مساء الخير يا وحوش 👁‍🗨🔥");
             lastSentEvening = today;
+        }
+
+        // 🔥 Test الساعة 12:25
+        if (hours === 12 && minutes === 47 && lastSentTest !== today) {
+            channel.send("مسا مسا دلوقتي الساعه 12:47");
+            lastSentTest = today;
         }
 
     }, 60000); // يفحص كل دقيقة
