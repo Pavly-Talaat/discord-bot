@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
-const { handleXP } = require('./levels');
+const { handleXP, getLevel } = require('./levels');
 const express = require('express');
 
 const app = express();
@@ -26,17 +26,20 @@ const TOKEN = process.env.TOKEN;
 
 client.once('clientReady', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
-
-    startMessages(client); // تشغيل الرسائل
+    startMessages(client);
 });
 
 client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
-    handleXP(message); // نظام الليفل
+    handleXP(message);
 
     if (message.content === "!ping") {
         message.reply("🏓 Pong from hell!");
+    }
+
+    if (message.content === "!level") {
+        getLevel(message);
     }
 });
 
