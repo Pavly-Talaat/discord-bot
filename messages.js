@@ -3,34 +3,42 @@ function startMessages(client) {
 
     let lastSentMorning = null;
     let lastSentEvening = null;
+    let lastSentTest = null;
 
     setInterval(() => {
         const now = new Date();
 
-        // 👇 تحويل الوقت لتوقيت مصر
+        // ⏰ توقيت مصر
         const egyptTime = new Date(
             now.toLocaleString("en-US", { timeZone: "Africa/Cairo" })
         );
 
         const hours = egyptTime.getHours();
+        const minutes = egyptTime.getMinutes();
         const today = egyptTime.toDateString();
 
         const channel = client.channels.cache.get(channelId);
         if (!channel) return;
 
-        // 🌅 صباح الخير (الساعة 9)
-        if (hours === 9 && lastSentMorning !== today) {
+        // 🌅 صباح الخير (9:00)
+        if (hours === 9 && minutes === 0 && lastSentMorning !== today) {
             channel.send("🌅 صباح الخير يا أبطال 😈🔥");
             lastSentMorning = today;
         }
 
-        // 🌙 مساء الخير (الساعة 9 مساءً)
-        if (hours === 21 && lastSentEvening !== today) {
+        // 🌙 مساء الخير (21:00)
+        if (hours === 21 && minutes === 0 && lastSentEvening !== today) {
             channel.send("🌙 مساء الخير يا وحوش 👁‍🗨🔥");
             lastSentEvening = today;
         }
 
-    }, 60000); // كل دقيقة
+        // 🔥 Test الساعة 12:25
+        if (hours === 12 && minutes === 25 && lastSentTest !== today) {
+            channel.send("🔥 Test 😈");
+            lastSentTest = today;
+        }
+
+    }, 60000); // يفحص كل دقيقة
 }
 
 module.exports = { startMessages };
