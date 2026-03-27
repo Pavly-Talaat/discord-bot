@@ -33,7 +33,7 @@ function startMessages(client) {
         }
 
         // 🔥 Test الساعة 12:25
-        if (hours === 12 && minutes === 25 && lastSentTest !== today) {
+        if (hours === 12 && minutes === 30 && lastSentTest !== today) {
             channel.send("🔥 Test 😈");
             lastSentTest = today;
         }
