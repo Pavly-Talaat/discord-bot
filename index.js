@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
+const { startTikTok } = require('./tiktok');
 const express = require('express');
 
 const app = express();
@@ -26,7 +27,9 @@ const TOKEN = process.env.TOKEN;
 
 client.once('clientReady', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
+
     startMessages(client);
+    startTikTok(client);
 });
 
 client.on('messageCreate', (message) => {
