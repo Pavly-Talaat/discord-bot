@@ -34,4 +34,16 @@ function handleXP(message) {
     saveData();
 }
 
-module.exports = { handleXP };
+function getLevel(message) {
+    const userId = message.author.id;
+
+    if (!users[userId]) {
+        return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
+    }
+
+    message.reply(
+        `🔥 Level: ${users[userId].level}\n💀 XP: ${users[userId].xp}`
+    );
+}
+
+module.exports = { handleXP, getLevel };
