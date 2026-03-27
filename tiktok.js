@@ -1,33 +1,54 @@
-const Parser = require('rss-parser');
-const parser = new Parser();
+const axios = require('axios');
+const fs = require('fs');
 
-let lastVideo = null;
+const DATA_FILE = 'tiktok.json';
+
+let lastVideoId = null;
+
+if (fs.existsSync(DATA_FILE)) {
+    const data = JSON.parse(fs.readFileSync(DATA_FILE));
+    lastVideoId = data.lastVideoId || null;
+}
+
+function saveLastVideo(id) {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ lastVideoId: id }));
+}
 
 async function checkTikTok(client) {
     const channelId = "1485793633268666418";
 
-    const rssUrl = "https://rsshub.app/tiktok/user/pavly_ta";
-
     try {
-        const feed = await parser.parseURL(rssUrl);
+        const res = await axios.get("https://tikwm.com/api/user/posts?unique_id=pavly_ta");
 
-        if (!feed.items.length) return;
+        const videos = res.data.data.videos;
+        if (!videos || videos.length === 0) return;
 
-        const latest = feed.items[0];
+        const channel = client.channels.cache.get(channelId);
+        if (!channel) return;
 
-        if (lastVideo === null) {
-            lastVideo = latest.link;
+        // أول تشغيل → يبعت كل القديم
+        if (!lastVideoId) {
+            for (let i = videos.length - 1; i >= 0; i--) {
+                const v = videos[i];
+                const link = `https://www.tiktok.com/@pavly_ta/video/${v.video_id}`;
+                await channel.send(`🔥 خش شوف الكلام ده 👁‍🗨\n${link}`);
+            }
+
+            lastVideoId = videos[0].video_id;
+            saveLastVideo(lastVideoId);
             return;
         }
 
-        if (latest.link !== lastVideo) {
-            lastVideo = latest.link;
+        // بعد كده → الجديد فقط
+        for (let v of videos) {
+            if (v.video_id === lastVideoId) break;
 
-            const channel = client.channels.cache.get(channelId);
-            if (!channel) return;
-
-            channel.send(`🔥 خش شوف الكلام ده 👁‍🗨\n${latest.link}`);
+            const link = `https://www.tiktok.com/@pavly_ta/video/${v.video_id}`;
+            await channel.send(`🔥 خش شوف الكلام ده 👁‍🗨\n${link}`);
         }
+
+        lastVideoId = videos[0].video_id;
+        saveLastVideo(lastVideoId);
 
     } catch (err) {
         console.error("TikTok Error:", err.message);
