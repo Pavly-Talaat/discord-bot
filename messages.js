@@ -33,8 +33,8 @@ function startMessages(client) {
         }
 
         // 🔥 Test الساعة 12:25
-        if (hours === 12 && minutes === 47 && lastSentTest !== today) {
-            channel.send("مسا مسا دلوقتي الساعه 12:47");
+        if (hours === 12 && minutes === 18 && lastSentTest !== today) {
+            channel.send("@1m7md_1 ما اسمحلكش تتكلم على المطور بتاعي كده");
             lastSentTest = today;
         }
 
