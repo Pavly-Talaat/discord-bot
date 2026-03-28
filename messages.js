@@ -33,7 +33,7 @@ function startMessages(client) {
         }
 
         // 🔥 Test الساعة 12:25
-        if (hours === 12 && minutes === 22 && lastSentTest !== today) {
+        if (hours === 12 && minutes === 23 && lastSentTest !== today) {
             channel.send("لي فكرني خول يا عرص ، أسيادي احا انت 😂");
             lastSentTest = today;
         }
