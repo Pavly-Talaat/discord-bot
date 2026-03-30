@@ -8,7 +8,6 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// XP
 async function handleXP(message) {
     let user = await User.findOne({ userId: message.author.id });
 
@@ -30,7 +29,6 @@ async function handleXP(message) {
     await user.save();
 }
 
-// Level
 async function getLevel(message) {
     const user = await User.findOne({ userId: message.author.id });
 
