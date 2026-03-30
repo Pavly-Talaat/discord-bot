@@ -13,14 +13,11 @@ const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 مهم جداً: Trust Proxy (Railway fix)
+// 🔥 مهم جداً: Railway fix
 app.set('trust proxy', 1);
 
 // 🔥 MongoDB اتصال
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
+mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ DB Error:", err));
 
@@ -29,8 +26,8 @@ app.get('/', (req, res) => {
     res.status(200).send('Bot is alive 😈🔥');
 });
 
-// 🔥 تشغيل السيرفر
-app.listen(PORT, () => {
+// 🔥 تشغيل السيرفر (FIX SIGTERM)
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
@@ -57,17 +54,17 @@ client.on('messageCreate', async (message) => {
 
     handleXP(message);
 
-    // 🏓 اختبار
+    // 🏓 Ping
     if (message.content === "!ping") {
         message.reply("🏓 Pong from hell!");
     }
 
-    // 🔥 ليفل
+    // 🔥 Level
     if (message.content === "!level") {
         getLevel(message);
     }
 
-    // 👁‍🗨 Gemini AI Command
+    // 👁‍🗨 AI Command
     if (message.content.startsWith("/ai")) {
         const prompt = message.content.replace("/ai", "").trim();
 
