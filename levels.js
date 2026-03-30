@@ -1,56 +1,51 @@
-const fs = require('fs');
+const { getDB } = require('./database'); // 👈 بدل index
 
-const DATA_FILE = 'levels.json';
+async function handleXP(message) {
+    const db = getDB();
+    if (!db) return;
 
-let users = {};
-
-function loadData() {
-    if (fs.existsSync(DATA_FILE)) {
-        try {
-            const data = fs.readFileSync(DATA_FILE, 'utf8');
-            users = JSON.parse(data || '{}');
-        } catch {
-            users = {};
-        }
-    }
-}
-
-function saveData() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
-}
-
-loadData();
-
-function handleXP(message) {
+    const users = db.collection("users");
     const userId = message.author.id;
 
-    if (!users[userId]) {
-        users[userId] = { xp: 0, level: 1 };
+    let user = await users.findOne({ userId });
+
+    if (!user) {
+        user = { userId, xp: 0, level: 1 };
+        await users.insertOne(user);
     }
 
-    users[userId].xp += 10;
+    user.xp += 3;
 
-    const neededXP = users[userId].level * 100;
+    const neededXP = user.level * 100;
 
-    if (users[userId].xp >= neededXP) {
-        users[userId].level++;
-        users[userId].xp = 0;
+    if (user.xp >= neededXP) {
+        user.level++;
+        user.xp = 0;
 
-        message.channel.send(`🔥 ${message.author} وصل Level ${users[userId].level} 😈`);
+        message.channel.send(`🔥 ${message.author} وصل Level ${user.level} 😈`);
     }
 
-    saveData();
+    await users.updateOne(
+        { userId },
+        { $set: { xp: user.xp, level: user.level } }
+    );
 }
 
-function getLevel(message) {
+async function getLevel(message) {
+    const db = getDB();
+    if (!db) return;
+
+    const users = db.collection("users");
     const userId = message.author.id;
 
-    if (!users[userId]) {
+    const user = await users.findOne({ userId });
+
+    if (!user) {
         return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
     }
 
     message.reply(
-        `🔥 Level: ${users[userId].level}\n💀 XP: ${users[userId].xp}`
+        `🔥 Level: ${user.level}\n💀 XP: ${user.xp}`
     );
 }
 
