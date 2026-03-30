@@ -4,7 +4,7 @@ const { handleXP, getLevel } = require('./levels');
 const express = require('express');
 const mongoose = require('mongoose');
 
-// 👁‍🗨 Gemini AI (FAST)
+// 👁‍🗨 Gemini AI (Safe Mode)
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 let model;
@@ -16,7 +16,7 @@ try {
         model: "gemini-1.5-flash"
     });
 
-    console.log("✅ Gemini جاهز");
+    console.log("✅ Gemini Ready");
 } catch (err) {
     console.error("❌ Gemini Init Error:", err);
 }
@@ -24,7 +24,6 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 Railway Fix
 app.set('trust proxy', 1);
 
 // 🔥 MongoDB
@@ -34,15 +33,15 @@ mongoose.connect(process.env.MONGO_URI)
 
 // 🔥 Keep Alive
 app.get('/', (req, res) => {
-    res.status(200).send('Bot is alive 😈🔥');
+    res.send('Bot is alive 😈🔥');
 });
 
-// 🔥 FIX SIGTERM
+// 🔥 Fix Railway
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🔥 Discord Bot
+// 🔥 Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -51,9 +50,6 @@ const client = new Client({
     ]
 });
 
-const TOKEN = process.env.TOKEN;
-
-// 🔥 Ready
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
@@ -65,17 +61,17 @@ client.on('messageCreate', async (message) => {
 
     handleXP(message);
 
-    // 🏓 Ping
+    // Ping
     if (message.content === "!ping") {
         return message.reply("🏓 Pong from hell!");
     }
 
-    // 🔥 Level
+    // Level
     if (message.content === "!level") {
         return getLevel(message);
     }
 
-    // 👁‍🗨 AI Command
+    // 👁‍🗨 AI
     if (message.content.startsWith("/ai")) {
         const prompt = message.content.replace("/ai", "").trim();
 
@@ -89,38 +85,25 @@ client.on('messageCreate', async (message) => {
 
         try {
             const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const text = response.text();
+            const text = result.response.text();
 
             if (!text) {
                 return message.reply("❌ مفيش رد");
             }
 
-            // تقسيم الرد لو طويل
-            if (text.length > 2000) {
-                const chunks = text.match(/[\s\S]{1,1900}/g);
-                for (const chunk of chunks) {
-                    await message.reply(`😈 ${chunk}`);
-                }
-            } else {
-                message.reply(`😈 ${text}`);
-            }
+            message.reply(`😈 ${text}`);
 
         } catch (err) {
             console.error("🔥 Gemini Error:", err);
-            message.reply("❌ Gemini وقع");
+
+            // 👁‍🗨 أهم سطر: يمنع الكراش
+            return message.reply("❌ Gemini فيه مشكلة (راجع الـ API)");
         }
     }
 });
 
-// 🔥 Anti Crash
-process.on('unhandledRejection', err => {
-    console.error('Unhandled Rejection:', err);
-});
+// 🔥 Anti crash
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
 
-process.on('uncaughtException', err => {
-    console.error('Uncaught Exception:', err);
-});
-
-// 🔥 Login
-client.login(TOKEN);
+client.login(process.env.TOKEN);
