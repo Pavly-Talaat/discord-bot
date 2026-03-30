@@ -1,20 +1,24 @@
-const { getDB } = require('./database'); // 👈 بدل index
+const mongoose = require('mongoose');
 
+const userSchema = new mongoose.Schema({
+    userId: String,
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// نظام XP
 async function handleXP(message) {
-    const db = getDB();
-    if (!db) return;
-
-    const users = db.collection("users");
     const userId = message.author.id;
 
-    let user = await users.findOne({ userId });
+    let user = await User.findOne({ userId });
 
     if (!user) {
-        user = { userId, xp: 0, level: 1 };
-        await users.insertOne(user);
+        user = new User({ userId });
     }
 
-    user.xp += 3;
+    user.xp += 2;
 
     const neededXP = user.level * 100;
 
@@ -25,28 +29,20 @@ async function handleXP(message) {
         message.channel.send(`🔥 ${message.author} وصل Level ${user.level} 😈`);
     }
 
-    await users.updateOne(
-        { userId },
-        { $set: { xp: user.xp, level: user.level } }
-    );
+    await user.save();
 }
 
+// عرض المستوى
 async function getLevel(message) {
-    const db = getDB();
-    if (!db) return;
-
-    const users = db.collection("users");
     const userId = message.author.id;
 
-    const user = await users.findOne({ userId });
+    const user = await User.findOne({ userId });
 
     if (!user) {
-        return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
+        return message.reply("😈 أنت لسه Level 0...");
     }
 
-    message.reply(
-        `🔥 Level: ${user.level}\n💀 XP: ${user.xp}`
-    );
+    message.reply(`🔥 Level: ${user.level}\n💀 XP: ${user.xp}`);
 }
 
 module.exports = { handleXP, getLevel };
