@@ -7,28 +7,22 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 مهم جداً: Trust Proxy (Railway fix)
-app.set('trust proxy', 1);
-
-// 🔥 MongoDB اتصال
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log("✅ MongoDB Connected"))
-.catch(err => console.log("❌ DB Error:", err));
-
-// 🔥 Route علشان Railway يفضل شايف السيرفر شغال
+// سيرفر Railway
 app.get('/', (req, res) => {
-    res.status(200).send('Bot is alive 😈🔥');
+    res.send('Bot is alive 😈');
 });
 
-// 🔥 تشغيل السيرفر (بدون 0.0.0.0)
+// ❗ مهم: بدون 0.0.0.0
 app.listen(PORT, () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🔥 إعداد البوت
+// 🔥 اتصال MongoDB
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log("✅ MongoDB Connected"))
+.catch(err => console.error("❌ MongoDB Error:", err));
+
+// إعداد البوت
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -39,28 +33,28 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// 🔥 لما البوت يشتغل
+// تشغيل
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
 });
 
-// 🔥 الأوامر
-client.on('messageCreate', (message) => {
+// الأوامر
+client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    handleXP(message);
+    await handleXP(message);
 
     if (message.content === "!ping") {
         message.reply("🏓 Pong from hell!");
     }
 
     if (message.content === "!level") {
-        getLevel(message);
+        await getLevel(message);
     }
 });
 
-// 🔥 منع الكراش
+// منع الكراش
 process.on('unhandledRejection', err => {
     console.error('Unhandled Rejection:', err);
 });
@@ -69,5 +63,4 @@ process.on('uncaughtException', err => {
     console.error('Uncaught Exception:', err);
 });
 
-// 🔥 تسجيل الدخول
-client.login(TOKEN);
+client.login(process.env.TOKEN);
