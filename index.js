@@ -2,17 +2,17 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
 const express = require('express');
-const OpenAI = require('openai');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 AI Setup
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+// MongoDB اتصال
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log("✅ MongoDB Connected"))
+.catch(err => console.log("❌ DB Error:", err));
 
-// السيرفر (عشان Railway)
+// السيرفر (مهم لـ Railway)
 app.get('/', (req, res) => {
     res.send('Bot is alive 😈');
 });
@@ -39,7 +39,7 @@ client.once('ready', () => {
 });
 
 // الأوامر
-client.on('messageCreate', async (message) => {
+client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
     handleXP(message);
@@ -50,33 +50,6 @@ client.on('messageCreate', async (message) => {
 
     if (message.content === "!level") {
         getLevel(message);
-    }
-
-    // 😈 AI COMMAND
-    if (message.content.startsWith("!ai")) {
-        const prompt = message.content.slice(3).trim();
-
-        if (!prompt) {
-            return message.reply("😈 اكتب حاجة بعد !ai");
-        }
-
-        try {
-            const response = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages: [
-                    { role: "system", content: "You are a cool helpful assistant." },
-                    { role: "user", content: prompt }
-                ]
-            });
-
-            const reply = response.choices[0].message.content;
-
-            message.reply(reply.slice(0, 2000));
-
-        } catch (err) {
-            console.error(err);
-            message.reply("💀 حصل خطأ في الذكاء الاصطناعي");
-        }
     }
 });
 
@@ -89,5 +62,4 @@ process.on('uncaughtException', err => {
     console.error('Uncaught Exception:', err);
 });
 
-// تسجيل الدخول
-client.login(TOKEN);
+client.login(process.env.TOKEN);
