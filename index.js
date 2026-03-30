@@ -4,34 +4,40 @@ const { handleXP, getLevel } = require('./levels');
 const express = require('express');
 const mongoose = require('mongoose');
 
-// 👁‍🗨 Gemini AI
+// 👁‍🗨 Gemini AI (FIXED)
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+let model;
+
+try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+} catch (err) {
+    console.error("Gemini Init Error:", err);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 مهم جداً: Railway fix
+// 🔥 Railway Fix
 app.set('trust proxy', 1);
 
-// 🔥 MongoDB اتصال
+// 🔥 MongoDB
 mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ DB Error:", err));
 
-// 🔥 Route علشان Railway يفضل شايف السيرفر شغال
+// 🔥 Keep Alive
 app.get('/', (req, res) => {
     res.status(200).send('Bot is alive 😈🔥');
 });
 
-// 🔥 تشغيل السيرفر (FIX SIGTERM)
+// 🔥 FIX SIGTERM
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🔥 إعداد البوت
+// 🔥 Discord Bot
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -42,13 +48,13 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// 🔥 لما البوت يشتغل
+// 🔥 Ready
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
 });
 
-// 🔥 الأوامر
+// 🔥 Commands
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -56,15 +62,15 @@ client.on('messageCreate', async (message) => {
 
     // 🏓 Ping
     if (message.content === "!ping") {
-        message.reply("🏓 Pong from hell!");
+        return message.reply("🏓 Pong from hell!");
     }
 
     // 🔥 Level
     if (message.content === "!level") {
-        getLevel(message);
+        return getLevel(message);
     }
 
-    // 👁‍🗨 AI Command
+    // 👁‍🗨 AI
     if (message.content.startsWith("/ai")) {
         const prompt = message.content.replace("/ai", "").trim();
 
@@ -72,20 +78,30 @@ client.on('messageCreate', async (message) => {
             return message.reply("💀 اكتب سؤالك بعد /ai");
         }
 
+        if (!model) {
+            return message.reply("❌ Gemini مش جاهز");
+        }
+
         try {
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const text = response.text();
+            const result = await model.generateContent({
+                contents: [{ parts: [{ text: prompt }] }]
+            });
+
+            const text = result.response.text();
+
+            if (!text) {
+                return message.reply("❌ مفيش رد");
+            }
 
             message.reply(`😈 ${text}`);
         } catch (err) {
-            console.error(err);
+            console.error("Gemini Error:", err);
             message.reply("❌ خطأ شيطاني حصل");
         }
     }
 });
 
-// 🔥 منع الكراش
+// 🔥 Anti Crash
 process.on('unhandledRejection', err => {
     console.error('Unhandled Rejection:', err);
 });
@@ -94,5 +110,5 @@ process.on('uncaughtException', err => {
     console.error('Uncaught Exception:', err);
 });
 
-// 🔥 تسجيل الدخول
-client.login(TOKEN);
+// 🔥 Login
+client.login(process.env.TOKEN);
