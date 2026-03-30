@@ -8,14 +8,12 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// نظام XP
+// XP
 async function handleXP(message) {
-    const userId = message.author.id;
-
-    let user = await User.findOne({ userId });
+    let user = await User.findOne({ userId: message.author.id });
 
     if (!user) {
-        user = new User({ userId });
+        user = new User({ userId: message.author.id });
     }
 
     user.xp += 2;
@@ -32,19 +30,15 @@ async function handleXP(message) {
     await user.save();
 }
 
-// عرض المستوى
+// Level
 async function getLevel(message) {
-    const userId = message.author.id;
-
-    const user = await User.findOne({ userId });
+    const user = await User.findOne({ userId: message.author.id });
 
     if (!user) {
-        return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
+        return message.reply("😈 أنت لسه Level 0...");
     }
 
-    message.reply(
-        `🔥 Level: ${user.level}\n💀 XP: ${user.xp}`
-    );
+    message.reply(`🔥 Level: ${user.level}\n💀 XP: ${user.xp}`);
 }
 
 module.exports = { handleXP, getLevel };
