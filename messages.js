@@ -3,7 +3,7 @@ function startMessages(client) {
 
     let lastSentMorning = null;
     let lastSentEvening = null;
-    let lastSentTest = null;
+    let lastSentDuaa = null;
 
     setInterval(() => {
         const now = new Date();
@@ -32,10 +32,10 @@ function startMessages(client) {
             lastSentEvening = today;
         }
 
-        // 🔥 Test الساعة 12:25
-        if (hours === 12 && minutes === 23 && lastSentTest !== today) {
-            channel.send("لي فكرني خول يا عرص ، أسيادي احا انت 😂");
-            lastSentTest = today;
+        // 🤲 الدعاء الساعة 1:20 مساءً (13:20)
+        if (hours === 13 && minutes === 20 && lastSentDuaa !== today) {
+            channel.send("مسا مسا");
+            lastSentDuaa = today;
         }
 
     }, 60000); // يفحص كل دقيقة
