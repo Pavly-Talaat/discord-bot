@@ -4,16 +4,21 @@ const { handleXP, getLevel } = require('./levels');
 const express = require('express');
 const mongoose = require('mongoose');
 
-// 👁‍🗨 Gemini AI (FIXED)
+// 👁‍🗨 Gemini AI (FAST)
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 let model;
 
 try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash"
+    });
+
+    console.log("✅ Gemini جاهز");
 } catch (err) {
-    console.error("Gemini Init Error:", err);
+    console.error("❌ Gemini Init Error:", err);
 }
 
 const app = express();
@@ -70,7 +75,7 @@ client.on('messageCreate', async (message) => {
         return getLevel(message);
     }
 
-    // 👁‍🗨 AI
+    // 👁‍🗨 AI Command
     if (message.content.startsWith("/ai")) {
         const prompt = message.content.replace("/ai", "").trim();
 
@@ -83,20 +88,27 @@ client.on('messageCreate', async (message) => {
         }
 
         try {
-            const result = await model.generateContent({
-                contents: [{ parts: [{ text: prompt }] }]
-            });
-
-            const text = result.response.text();
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
 
             if (!text) {
                 return message.reply("❌ مفيش رد");
             }
 
-            message.reply(`😈 ${text}`);
+            // تقسيم الرد لو طويل
+            if (text.length > 2000) {
+                const chunks = text.match(/[\s\S]{1,1900}/g);
+                for (const chunk of chunks) {
+                    await message.reply(`😈 ${chunk}`);
+                }
+            } else {
+                message.reply(`😈 ${text}`);
+            }
+
         } catch (err) {
-            console.error("Gemini Error:", err);
-            message.reply("❌ خطأ شيطاني حصل");
+            console.error("🔥 Gemini Error:", err);
+            message.reply("❌ Gemini وقع");
         }
     }
 });
@@ -111,4 +123,4 @@ process.on('uncaughtException', err => {
 });
 
 // 🔥 Login
-client.login(process.env.TOKEN);
+client.login(TOKEN);
