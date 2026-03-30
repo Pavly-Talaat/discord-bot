@@ -39,10 +39,12 @@ async function getLevel(message) {
     const user = await User.findOne({ userId });
 
     if (!user) {
-        return message.reply("😈 أنت لسه Level 0...");
+        return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
     }
 
-    message.reply(`🔥 Level: ${user.level}\n💀 XP: ${user.xp}`);
+    message.reply(
+        `🔥 Level: ${user.level}\n💀 XP: ${user.xp}`
+    );
 }
 
 module.exports = { handleXP, getLevel };
