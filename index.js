@@ -7,21 +7,28 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MongoDB اتصال
-mongoose.connect(process.env.MONGO_URI)
+// 🔥 مهم جداً: Trust Proxy (Railway fix)
+app.set('trust proxy', 1);
+
+// 🔥 MongoDB اتصال
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ DB Error:", err));
 
-// السيرفر (مهم لـ Railway)
+// 🔥 Route علشان Railway يفضل شايف السيرفر شغال
 app.get('/', (req, res) => {
-    res.send('Bot is alive 😈');
+    res.status(200).send('Bot is alive 😈🔥');
 });
 
+// 🔥 تشغيل السيرفر (بدون 0.0.0.0)
 app.listen(PORT, () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// إعداد البوت
+// 🔥 إعداد البوت
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -32,13 +39,13 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// تشغيل البوت
+// 🔥 لما البوت يشتغل
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
 });
 
-// الأوامر
+// 🔥 الأوامر
 client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
@@ -53,7 +60,7 @@ client.on('messageCreate', (message) => {
     }
 });
 
-// منع الكراش
+// 🔥 منع الكراش
 process.on('unhandledRejection', err => {
     console.error('Unhandled Rejection:', err);
 });
@@ -62,4 +69,5 @@ process.on('uncaughtException', err => {
     console.error('Uncaught Exception:', err);
 });
 
-client.login(process.env.TOKEN);
+// 🔥 تسجيل الدخول
+client.login(TOKEN);
