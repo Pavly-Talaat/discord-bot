@@ -1,8 +1,8 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
-const { startTikTok } = require('./tiktok');
 const express = require('express');
+const { connectDB } = require('./database'); // 👈 مهم
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,9 +11,12 @@ app.get('/', (req, res) => {
     res.send('Bot is alive 😈');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
+
+// 🔥 الاتصال بقاعدة البيانات
+connectDB();
 
 const client = new Client({
     intents: [
@@ -25,25 +28,26 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-client.once('clientReady', () => {
+client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
-
     startMessages(client);
-    startTikTok(client);
 });
 
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    handleXP(message);
+    await handleXP(message);
 
     if (message.content === "!ping") {
         message.reply("🏓 Pong from hell!");
     }
 
     if (message.content === "!level") {
-        getLevel(message);
+        await getLevel(message);
     }
 });
+
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
 
 client.login(TOKEN);
