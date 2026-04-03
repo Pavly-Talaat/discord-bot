@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
-const { askAI, clearChat, testGemini } = require('./ai');
+const { askAI, clearChat } = require('./ai');
 const express = require('express');
 const { connectDB } = require('./database');
 
@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Bot is running 🔥');
+    res.send('Devil Bot is running 🔥😈');
 });
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -18,18 +18,6 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // الاتصال بقاعدة البيانات
 connectDB();
-
-// اختبار الـ AI عند بدء التشغيل
-setTimeout(async () => {
-    console.log("🔍 Checking Gemini API...");
-    const isWorking = await testGemini();
-    if (!isWorking) {
-        console.log("⚠️ WARNING: Gemini API is not working. Please check your API key!");
-        console.log("📝 Get a new API key from: https://makersuite.google.com/app/apikey");
-    } else {
-        console.log("🎉 Gemini API is ready to use!");
-    }
-}, 3000);
 
 const client = new Client({
     intents: [
@@ -53,7 +41,7 @@ client.on('messageCreate', async (message) => {
 
     // Ping command
     if (message.content === "!ping") {
-        message.reply("🏓 Pong from Home!");
+        message.reply("🏓 Pong!");
     }
 
     // Level command
@@ -66,16 +54,12 @@ client.on('messageCreate', async (message) => {
         const question = message.content.slice(4).trim();
         
         if (!question) {
-            return message.reply("❌ من فضلك اكتب سؤالك بعد `/ai`\nمثال: `/ai كيف حالك؟`");
+            return message.reply("❌ اكتب سؤالك بعد `/ai`\nمثال: `/ai كيف حالك؟`");
         }
         
-        // إظهار أن البوت يكتب
         await message.channel.sendTyping();
-        
-        // جلب الرد من AI
         const aiResponse = await askAI(question, message.author.id);
         
-        // إرسال الرد (مع تجزئة النص الطويل)
         if (aiResponse.length > 2000) {
             const chunks = aiResponse.match(/[\s\S]{1,1900}/g) || [];
             for (const chunk of chunks) {
