@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
-const { askAI, clearChat } = require('./ai');
+const { askAI, clearChat, testGemini } = require('./ai');
 const express = require('express');
 const { connectDB } = require('./database');
 
@@ -18,6 +18,18 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // الاتصال بقاعدة البيانات
 connectDB();
+
+// اختبار الـ AI عند بدء التشغيل
+setTimeout(async () => {
+    console.log("🔍 Checking Gemini API...");
+    const isWorking = await testGemini();
+    if (!isWorking) {
+        console.log("⚠️ WARNING: Gemini API is not working. Please check your API key!");
+        console.log("📝 Get a new API key from: https://makersuite.google.com/app/apikey");
+    } else {
+        console.log("🎉 Gemini API is ready to use!");
+    }
+}, 3000);
 
 const client = new Client({
     intents: [
