@@ -7,7 +7,7 @@ const GEMINI_API_KEY = "AIzaSyAvJPOpGH7JkQKfrRu9SXOX7Tgmb9o2ib4";
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // النموذج - جرب gemini-1.5-flash إذا gemini-pro مش شغال
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // حفظ المحادثات لكل مستخدم
 const userChats = new Map();
