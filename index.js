@@ -1,3 +1,4 @@
+// index.js
 const { Client, GatewayIntentBits } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
@@ -16,7 +17,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// الاتصال بقاعدة البيانات
 connectDB();
 
 const client = new Client({
@@ -28,6 +28,10 @@ const client = new Client({
 });
 
 const TOKEN = process.env.TOKEN;
+if (!TOKEN) {
+    console.error("❌ خطأ فادح: لم يتم العثور على TOKEN في متغيرات البيئة!");
+    process.exit(1);
+}
 
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
@@ -39,20 +43,16 @@ client.on('messageCreate', async (message) => {
 
     await handleXP(message);
 
-    // Ping command
     if (message.content === "!ping") {
         message.reply("🏓 Pong!");
     }
 
-    // Level command
     if (message.content === "!level") {
         await getLevel(message);
     }
 
-    // AI Command - /ai <question>
     if (message.content.startsWith("/ai")) {
         const question = message.content.slice(4).trim();
-        
         if (!question) {
             return message.reply("❌ اكتب سؤالك بعد `/ai`\nمثال: `/ai كيف حالك؟`");
         }
@@ -70,7 +70,6 @@ client.on('messageCreate', async (message) => {
         }
     }
     
-    // Clear AI chat command
     if (message.content === "/clearai") {
         const result = clearChat(message.author.id);
         message.reply(result);
