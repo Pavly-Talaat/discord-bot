@@ -71,7 +71,6 @@ client.on('messageCreate', async (message) => {
         }
 
         // ================== 🏆 TOP ==================
-
         if (command === "!top") {
 
             const topUsers = await users
@@ -97,7 +96,6 @@ client.on('messageCreate', async (message) => {
                 description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
             }
 
-            // 👑 Top 1
             let topUser = null;
             try {
                 topUser = await client.users.fetch(topUsers[0].userId);
@@ -118,7 +116,6 @@ client.on('messageCreate', async (message) => {
 
             if (topUser) {
                 const avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
-
                 embed.setImage(avatar).setThumbnail(avatar);
             }
 
@@ -126,7 +123,6 @@ client.on('messageCreate', async (message) => {
         }
 
         // ================== 💀 OWNER ONLY ==================
-
         const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
 
         if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
@@ -215,8 +211,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
         }
 
-        // ================== 🔒 RANK ==================
-
+        // ================== 🔒 RANK (مضمون 100%) ==================
         if (command === "!rank") {
 
             if (!hasPermission(message)) {
@@ -225,13 +220,46 @@ client.on('messageCreate', async (message) => {
 
             if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-            const fakeMessage = {
-                ...message,
-                author: mentionedUser,
-                member: message.guild.members.cache.get(mentionedUser.id)
-            };
+            const userId = mentionedUser.id;
 
-            return await getLevel(fakeMessage);
+            const user = await users.findOne({ userId });
+
+            if (!user) {
+                return message.reply("❌ الشخص ده معندوش بيانات");
+            }
+
+            const level = user.level;
+            const xp = user.xp;
+            const neededXP = level * 100;
+
+            const percentage = xp / neededXP;
+            const totalBars = 10;
+            const filledBars = Math.round(percentage * totalBars);
+            const emptyBars = totalBars - filledBars;
+            const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+
+            const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
+            const index = allUsers.findIndex(u => u.userId === userId);
+            const rank = index === -1 ? "?" : index + 1;
+
+            const member = message.guild.members.cache.get(userId);
+            const name = member?.displayName || mentionedUser.username;
+
+            const embed = new EmbedBuilder()
+                .setColor("#2b2d31")
+                .setAuthor({
+                    name: `📊 إحصائيات ${name}`,
+                    iconURL: mentionedUser.displayAvatarURL()
+                })
+                .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: "⭐ المستوى", value: `\`${level}\``, inline: true },
+                    { name: "👑 الرتبة", value: `\`#${rank}\``, inline: true },
+                    { name: "✨ النقاط", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
+                )
+                .setFooter({ text: "Devil Bot 😈" });
+
+            return message.reply({ embeds: [embed] });
         }
 
     } catch (err) {
