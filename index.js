@@ -90,7 +90,7 @@ client.on('messageCreate', async (message) => {
     const ownerOnlyCommands = ["!addxp", "!rexp", "!addlevel", "!relevel"];
 
     if (ownerOnlyCommands.includes(command) && message.author.id !== OWNER_ID) {
-        return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط من يتحكم هنا 👑💀");
+        return message.reply("⚠️ هذا الأمر محظور… خاص بي owner فقط من يتحكم هنا 👑💀");
     }
 
     // 🔥 addxp
