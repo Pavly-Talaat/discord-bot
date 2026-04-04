@@ -32,7 +32,7 @@ const client = new Client({
 const TOKEN = process.env.TOKEN;
 const OWNER_ID = "880803449632079883";
 
-// 👑 تحقق الصلاحيات (Owner + Admin + VIP فقط)
+// 👑 صلاحيات rank
 function hasPermission(message) {
     return (
         message.author.id === OWNER_ID ||
@@ -54,7 +54,6 @@ client.on('messageCreate', async (message) => {
 
     const users = db.collection("users");
 
-    // 🔥 XP System
     await handleXP(message);
 
     const args = message.content.split(" ");
@@ -66,7 +65,7 @@ client.on('messageCreate', async (message) => {
         return message.reply("🏓 Pong!");
     }
 
-    // 🟢 level (لنفسك)
+    // 🟢 level
     if (command === "!level") {
         return await getLevel(message);
     }
@@ -75,54 +74,42 @@ client.on('messageCreate', async (message) => {
     if (command === "!top") {
         const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
 
-        if (!topUsers.length) {
-            return message.reply("❌ مفيش بيانات لسه");
-        }
+        let desc = topUsers.map((u, i) =>
+            `${i+1}# - <@${u.userId}> (Level ${u.level})`
+        ).join("\n");
 
-        let description = "";
-
-        for (let i = 0; i < topUsers.length; i++) {
-            const u = topUsers[i];
-
-            let medal = "🔹";
-            if (i === 0) medal = "🥇";
-            else if (i === 1) medal = "🥈";
-            else if (i === 2) medal = "🥉";
-
-            description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor("#FFD700")
+        return message.reply({ embeds: [
+            new EmbedBuilder()
             .setTitle("🏆 Top 5 Players")
-            .setDescription(description)
-            .setFooter({ text: "Devil Bot 😈" });
-
-        message.reply({ embeds: [embed] });
+            .setDescription(desc || "❌ مفيش بيانات")
+        ]});
     }
 
-    // ================== 👑 OWNER COMMANDS ==================
+    // ================== 💀 OWNER ONLY COMMANDS ==================
 
-    if (command === "!addxp" && message.author.id === OWNER_ID) {
+    const ownerOnlyCommands = ["!addxp", "!rexp", "!addlevel", "!relevel"];
+
+    if (ownerOnlyCommands.includes(command) && message.author.id !== OWNER_ID) {
+        return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط من يتحكم هنا 👑💀");
+    }
+
+    // 🔥 addxp
+    if (command === "!addxp") {
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
         if (isNaN(amount)) return;
 
-        let user = await users.findOne({ userId: mentionedUser.id });
-        if (!user) user = { userId: mentionedUser.id, xp: 0, level: 1 };
+        let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
 
         user.xp += amount;
 
-        await users.updateOne(
-            { userId: mentionedUser.id },
-            { $set: user },
-            { upsert: true }
-        );
+        await users.updateOne({ userId: mentionedUser.id }, { $set: user }, { upsert: true });
 
         return message.reply(`🔥 +${amount} XP → ${mentionedUser}`);
     }
 
-    if (command === "!rexp" && message.author.id === OWNER_ID) {
+    // 💀 rexp
+    if (command === "!rexp") {
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
         if (isNaN(amount)) return;
@@ -132,34 +119,28 @@ client.on('messageCreate', async (message) => {
 
         user.xp = Math.max(0, user.xp - amount);
 
-        await users.updateOne(
-            { userId: mentionedUser.id },
-            { $set: user }
-        );
+        await users.updateOne({ userId: mentionedUser.id }, { $set: user });
 
         return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
     }
 
-    if (command === "!addlevel" && message.author.id === OWNER_ID) {
+    // 👑 addlevel
+    if (command === "!addlevel") {
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
         if (isNaN(amount)) return;
 
-        let user = await users.findOne({ userId: mentionedUser.id });
-        if (!user) user = { userId: mentionedUser.id, xp: 0, level: 1 };
+        let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
 
         user.level += amount;
 
-        await users.updateOne(
-            { userId: mentionedUser.id },
-            { $set: user },
-            { upsert: true }
-        );
+        await users.updateOne({ userId: mentionedUser.id }, { $set: user }, { upsert: true });
 
         return message.reply(`👑 +${amount} Level → ${mentionedUser}`);
     }
 
-    if (command === "!relevel" && message.author.id === OWNER_ID) {
+    // 💀 relevel
+    if (command === "!relevel") {
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
         if (isNaN(amount)) return;
@@ -169,15 +150,12 @@ client.on('messageCreate', async (message) => {
 
         user.level = Math.max(1, user.level - amount);
 
-        await users.updateOne(
-            { userId: mentionedUser.id },
-            { $set: user }
-        );
+        await users.updateOne({ userId: mentionedUser.id }, { $set: user });
 
         return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
     }
 
-    // ================== 🔒 RANK (Owner + Admin + VIP فقط) ==================
+    // ================== 🔒 rank ==================
 
     if (command === "!rank") {
 
@@ -187,50 +165,18 @@ client.on('messageCreate', async (message) => {
 
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-        const userId = mentionedUser.id;
-
-        let user = await users.findOne({ userId });
-
-        if (!user) {
-            return message.reply("❌ الشخص ده معندوش بيانات");
-        }
+        let user = await users.findOne({ userId: mentionedUser.id });
+        if (!user) return message.reply("❌ مفيش بيانات");
 
         const level = user.level;
         const xp = user.xp;
         const neededXP = level * 100;
 
-        const percentage = xp / neededXP;
-        const totalBars = 10;
-        const filledBars = Math.round(percentage * totalBars);
-        const emptyBars = totalBars - filledBars;
-        const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+        const all = await users.find().sort({ level: -1, xp: -1 }).toArray();
+        const rank = all.findIndex(u => u.userId === mentionedUser.id) + 1;
 
-        const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
-        const index = allUsers.findIndex(u => u.userId === userId);
-        const rank = index === -1 ? "?" : index + 1;
-
-        const member = message.guild.members.cache.get(userId);
-        const name = member?.displayName || mentionedUser.username;
-
-        const embed = new EmbedBuilder()
-            .setColor("#2b2d31")
-            .setAuthor({
-                name: `📊 إحصائيات ${name}`,
-                iconURL: mentionedUser.displayAvatarURL()
-            })
-            .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: "⭐ المستوى", value: `\`${level}\``, inline: true },
-                { name: "👑 الرتبة", value: `\`#${rank}\``, inline: true },
-                { name: "✨ النقاط", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
-            )
-            .setFooter({ text: "Devil Bot 😈" });
-
-        message.reply({ embeds: [embed] });
+        return message.reply(`👑 ${mentionedUser} | Level: ${level} | XP: ${xp}/${neededXP} | Rank: #${rank}`);
     }
 });
-
-process.on('unhandledRejection', err => console.error(err));
-process.on('uncaughtException', err => console.error(err));
 
 client.login(TOKEN);
