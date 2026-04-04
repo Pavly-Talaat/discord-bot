@@ -1,0 +1,171 @@
+require("dotenv").config();
+
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { startMessages } = require('./messages');
+const { handleXP, getLevel, addXP, removeXP, setLevel, resetUser, showUserData } = require('./levels');
+const { getDB, connectDB } = require('./database');
+
+const express = require('express');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('Bot is running');
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Server running on port ${PORT}`);
+});
+
+// 🔥 DB
+connectDB();
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
+
+const TOKEN = process.env.TOKEN;
+
+client.once('ready', () => {
+    console.log(`🔥 Logged in as ${client.user.tag}`);
+    startMessages(client);
+});
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+
+    // 🔥 XP
+    await handleXP(message);
+
+    // 🟢 ping
+    if (message.content === "!ping") {
+        return message.reply("🏓 Pong!");
+    }
+
+    // 🟢 level
+    if (message.content === "!level") {
+        return await getLevel(message);
+    }
+
+    // ========== 🔐 ADMIN COMMANDS ==========
+
+    // 📈 !addxp [@user] [amount]
+    if (message.content.startsWith("!addxp")) {
+        const args = message.content.split(" ");
+        return await addXP(message, args);
+    }
+
+    // 📉 !removexp [@user] [amount]
+    if (message.content.startsWith("!removexp")) {
+        const args = message.content.split(" ");
+        return await removeXP(message, args);
+    }
+
+    // 🎯 !setlevel [@user] [level]
+    if (message.content.startsWith("!setlevel")) {
+        const args = message.content.split(" ");
+        return await setLevel(message, args);
+    }
+
+    // 🔄 !reset [@user]
+    if (message.content.startsWith("!reset")) {
+        const args = message.content.split(" ");
+        return await resetUser(message, args);
+    }
+
+    // 👑 !userdata [@user]
+    if (message.content.startsWith("!userdata")) {
+        const args = message.content.split(" ");
+        return await showUserData(message, args);
+    }
+
+    // 🏆 Best 5 Players (👑 نسخة احترافية)
+    if (message.content === "!best") {
+        const db = getDB();
+        if (!db) return;
+
+        const users = db.collection("users");
+
+        const topUsers = await users
+            .find()
+            .sort({ level: -1, xp: -1 })
+            .limit(5)
+            .toArray();
+
+        if (!topUsers.length) {
+            return message.reply("❌ مفيش بيانات لسه");
+        }
+
+        let description = "";
+
+        for (let i = 0; i < topUsers.length; i++) {
+            const u = topUsers[i];
+
+            let medal = "🔹";
+            if (i === 0) medal = "🥇";
+            else if (i === 1) medal = "🥈";
+            else if (i === 2) medal = "🥉";
+
+            description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
+        }
+
+        // 👑 Top 1
+        let topUser = null;
+        try {
+            topUser = await client.users.fetch(topUsers[0].userId);
+        } catch (err) {
+            console.log("❌ Failed to fetch top user");
+        }
+
+        let title = "🏆 Best 5 Players";
+
+        if (topUser) {
+            title = `👑 ${topUser.username} | Top Player`;
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor("#FFD700")
+            .setTitle(title)
+            .setDescription(description)
+            .setFooter({ text: "Devil Bot 😈" });
+
+        if (topUser) {
+            const avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
+            embed.setImage(avatar);
+        }
+
+        message.reply({ embeds: [embed] });
+    }
+
+    // ========== 📋 HELP COMMAND ==========
+    if (message.content === "!help" || message.content === "!commands") {
+        const embed = new EmbedBuilder()
+            .setColor("#0099FF")
+            .setTitle("📋 أوامر البوت")
+            .addFields(
+                { name: "🎮 أوامر عامة", value: "‎", inline: false },
+                { name: "!ping", value: "اختبر سرعة البوت", inline: true },
+                { name: "!level", value: "اعرض ليفلك", inline: true },
+                { name: "!best", value: "أفضل 5 لاعبين", inline: true },
+                { name: "\n🔐 أوامر الأدمن", value: "‎", inline: false },
+                { name: "!addxp [@user] [amount]", value: "اضف XP لشخص", inline: true },
+                { name: "!removexp [@user] [amount]", value: "قلل XP من شخص", inline: true },
+                { name: "!setlevel [@user] [level]", value: "غيّر الليفل", inline: true },
+                { name: "!reset [@user]", value: "أعد تعيين البيانات", inline: true },
+                { name: "!userdata [@user]", value: "اعرض بيانات اللاعب", inline: true }
+            )
+            .setFooter({ text: "Devil Bot 😈 | Admin Only" });
+
+        message.reply({ embeds: [embed] });
+    }
+});
+
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
+
+client.login(TOKEN);
