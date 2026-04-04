@@ -45,170 +45,201 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
+    try {
+        if (message.author.bot) return;
 
-    const db = getDB();
-    if (!db) return;
+        const db = getDB();
+        if (!db) return;
 
-    const users = db.collection("users");
+        const users = db.collection("users");
 
-    await handleXP(message);
+        // 🔥 XP System
+        await handleXP(message);
 
-    const args = message.content.split(" ");
-    const command = args[0];
-    const mentionedUser = message.mentions.users.first();
+        const args = message.content.split(" ");
+        const command = args[0];
+        const mentionedUser = message.mentions.users.first();
 
-    // 🟢 ping
-    if (command === "!ping") {
-        return message.reply("🏓 Pong!");
-    }
-
-    // 🟢 level (لنفسك)
-    if (command === "!level") {
-        return await getLevel(message);
-    }
-
-    // ================== 🏆 TOP (بالشكل الاحترافي) ==================
-
-    if (command === "!top") {
-
-        const topUsers = await users
-            .find()
-            .sort({ level: -1, xp: -1 })
-            .limit(5)
-            .toArray();
-
-        if (!topUsers.length) {
-            return message.reply("❌ مفيش بيانات لسه");
+        // 🟢 ping
+        if (command === "!ping") {
+            return message.reply("🏓 Pong!");
         }
 
-        let description = "";
-
-        for (let i = 0; i < topUsers.length; i++) {
-            const u = topUsers[i];
-
-            let medal = "🔹";
-            if (i === 0) medal = "🥇";
-            else if (i === 1) medal = "🥈";
-            else if (i === 2) medal = "🥉";
-
-            description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
+        // 🟢 level
+        if (command === "!level") {
+            return await getLevel(message);
         }
 
-        // 👑 Top 1
-        let topUser = null;
-        try {
-            topUser = await client.users.fetch(topUsers[0].userId);
-        } catch (err) {
-            console.log("❌ Failed to fetch top user");
+        // ================== 🏆 TOP ==================
+
+        if (command === "!top") {
+
+            const topUsers = await users
+                .find()
+                .sort({ level: -1, xp: -1 })
+                .limit(5)
+                .toArray();
+
+            if (!topUsers.length) {
+                return message.reply("❌ مفيش بيانات لسه");
+            }
+
+            let description = "";
+
+            for (let i = 0; i < topUsers.length; i++) {
+                const u = topUsers[i];
+
+                let medal = "🔹";
+                if (i === 0) medal = "🥇";
+                else if (i === 1) medal = "🥈";
+                else if (i === 2) medal = "🥉";
+
+                description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
+            }
+
+            // 👑 Top 1
+            let topUser = null;
+            try {
+                topUser = await client.users.fetch(topUsers[0].userId);
+            } catch {}
+
+            let title = "🏆 Best 5 Players";
+
+            if (topUser) {
+                title = `👑 ${topUser.username.toUpperCase()} | TOP PLAYER`;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor("#FFD700")
+                .setTitle(title)
+                .setDescription(description)
+                .setFooter({ text: "🔥 DEVIL SYSTEM" })
+                .setTimestamp();
+
+            if (topUser) {
+                const avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
+
+                embed.setImage(avatar).setThumbnail(avatar);
+            }
+
+            return message.reply({ embeds: [embed] });
         }
 
-        let title = "🏆 Best 5 Players";
+        // ================== 💀 OWNER ONLY ==================
 
-        if (topUser) {
-            title = `👑 ${topUser.username.toUpperCase()} | TOP PLAYER`;
+        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
+
+        if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
+            return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
         }
 
-        const embed = new EmbedBuilder()
-            .setColor("#FFD700")
-            .setTitle(title)
-            .setDescription(description)
-            .setFooter({ text: "🔥 DEVIL SYSTEM" })
-            .setTimestamp();
+        // 🔥 addxp
+        if (command === "!addxp") {
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-        if (topUser) {
-            const avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
+            const amount = parseInt(args[2]);
+            if (isNaN(amount)) return;
 
-            embed
-                .setImage(avatar)
-                .setThumbnail(avatar);
+            let user = await users.findOne({ userId: mentionedUser.id }) 
+                || { userId: mentionedUser.id, xp: 0, level: 1 };
+
+            user.xp += amount;
+
+            await users.updateOne(
+                { userId: mentionedUser.id },
+                { $set: user },
+                { upsert: true }
+            );
+
+            return message.reply(`🔥 +${amount} XP → ${mentionedUser}`);
         }
 
-        return message.reply({ embeds: [embed] });
-    }
+        // 💀 rexp
+        if (command === "!rexp") {
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-    // ================== 💀 OWNER ONLY ==================
+            const amount = parseInt(args[2]);
+            if (isNaN(amount)) return;
 
-    const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
+            let user = await users.findOne({ userId: mentionedUser.id });
+            if (!user) return;
 
-    if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
-        return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
-    }
+            user.xp = Math.max(0, user.xp - amount);
 
-    // 🔥 addxp
-    if (command === "!addxp") {
-        if (!mentionedUser) return;
-        const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
+            await users.updateOne(
+                { userId: mentionedUser.id },
+                { $set: user }
+            );
 
-        let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
-
-        user.xp += amount;
-
-        await users.updateOne({ userId: mentionedUser.id }, { $set: user }, { upsert: true });
-
-        return message.reply(`🔥 +${amount} XP → ${mentionedUser}`);
-    }
-
-    // 💀 rexp
-    if (command === "!rexp") {
-        if (!mentionedUser) return;
-        const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
-
-        let user = await users.findOne({ userId: mentionedUser.id });
-        if (!user) return;
-
-        user.xp = Math.max(0, user.xp - amount);
-
-        await users.updateOne({ userId: mentionedUser.id }, { $set: user });
-
-        return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
-    }
-
-    // 👑 addlevel
-    if (command === "!addlevel") {
-        if (!mentionedUser) return;
-        const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
-
-        let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
-
-        user.level += amount;
-
-        await users.updateOne({ userId: mentionedUser.id }, { $set: user }, { upsert: true });
-
-        return message.reply(`👑 +${amount} Level → ${mentionedUser}`);
-    }
-
-    // 💀 relevel
-    if (command === "!relevel") {
-        if (!mentionedUser) return;
-        const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
-
-        let user = await users.findOne({ userId: mentionedUser.id });
-        if (!user) return;
-
-        user.level = Math.max(1, user.level - amount);
-
-        await users.updateOne({ userId: mentionedUser.id }, { $set: user });
-
-        return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
-    }
-
-    // ================== 🔒 RANK (نفس تصميم level) ==================
-
-    if (command === "!rank") {
-
-        if (!hasPermission(message)) {
-            return message.reply("❌ الأمر مرفوض");
+            return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
         }
 
-        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+        // 👑 addlevel
+        if (command === "!addlevel") {
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-        return await getLevel(message, mentionedUser);
+            const amount = parseInt(args[2]);
+            if (isNaN(amount)) return;
+
+            let user = await users.findOne({ userId: mentionedUser.id }) 
+                || { userId: mentionedUser.id, xp: 0, level: 1 };
+
+            user.level += amount;
+
+            await users.updateOne(
+                { userId: mentionedUser.id },
+                { $set: user },
+                { upsert: true }
+            );
+
+            return message.reply(`👑 +${amount} Level → ${mentionedUser}`);
+        }
+
+        // 💀 relevel
+        if (command === "!relevel") {
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+            const amount = parseInt(args[2]);
+            if (isNaN(amount)) return;
+
+            let user = await users.findOne({ userId: mentionedUser.id });
+            if (!user) return;
+
+            user.level = Math.max(1, user.level - amount);
+
+            await users.updateOne(
+                { userId: mentionedUser.id },
+                { $set: user }
+            );
+
+            return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
+        }
+
+        // ================== 🔒 RANK ==================
+
+        if (command === "!rank") {
+
+            if (!hasPermission(message)) {
+                return message.reply("❌ الأمر مرفوض");
+            }
+
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+            const fakeMessage = {
+                ...message,
+                author: mentionedUser,
+                member: message.guild.members.cache.get(mentionedUser.id)
+            };
+
+            return await getLevel(fakeMessage);
+        }
+
+    } catch (err) {
+        console.error("❌ ERROR:", err);
     }
 });
+
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
 
 client.login(TOKEN);
