@@ -1,28 +1,25 @@
 const { getDB } = require('./database');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { EmbedBuilder } = require('discord.js');
 
-// 🧠 جلب المستخدم
-async function getUser(userId) {
+async function handleXP(message) {
     const db = getDB();
+    if (!db) return;
+
     const users = db.collection("users");
+    const userId = message.author.id;
 
     let user = await users.findOne({ userId });
 
     if (!user) {
-        user = { userId, xp: 0, level: 1, hp: 100 };
+        user = { 
+            userId, 
+            xp: 0, 
+            level: 1,
+            username: message.author.username,
+            avatar: message.author.displayAvatarURL()
+        };
         await users.insertOne(user);
     }
-
-    return user;
-}
-
-// 🔥 XP
-async function handleXP(message) {
-    const db = getDB();
-    const users = db.collection("users");
-
-    const userId = message.author.id;
-    let user = await getUser(userId);
 
     user.xp += 3;
 
@@ -32,120 +29,307 @@ async function handleXP(message) {
         user.level++;
         user.xp = 0;
 
-        message.channel.send(`🔥 ${message.author} وصل Level ${user.level}`);
+        message.channel.send(`🔥 ${message.author} وصل Level ${user.level} 😈`);
     }
 
-    await users.updateOne({ userId }, { $set: user });
+    await users.updateOne(
+        { userId },
+        { $set: { 
+            xp: user.xp, 
+            level: user.level,
+            username: message.author.username,
+            avatar: message.author.displayAvatarURL()
+        } }
+    );
 }
 
-// 🎨 Rank Card
-async function createRankCard(userObj, data) {
-    const canvas = createCanvas(800, 300);
-    const ctx = canvas.getContext('2d');
+async function getLevel(message) {
+    const db = getDB();
+    if (!db) return;
 
-    // خلفية
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, 800, 300);
+    const users = db.collection("users");
+    const userId = message.author.id;
 
-    // صورة
-    const avatar = await loadImage(
-        userObj.displayAvatarURL({ extension: 'png', size: 256 })
+    const user = await users.findOne({ userId });
+
+    if (!user) {
+        return message.reply("😈 أنت لسه Level 0... ابدأ اكتب!");
+    }
+
+    const neededXP = user.level * 100;
+    const progressPercent = (user.xp / neededXP * 100).toFixed(0);
+    
+    // عمل loading bar
+    const barLength = 20;
+    const filledBars = Math.round((user.xp / neededXP) * barLength);
+    const emptyBars = barLength - filledBars;
+    const bar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
+
+    // loading animation
+    let loadingMsg = await message.reply("⏳ جاري التحميل...");
+    
+    await new Promise(r => setTimeout(r, 800));
+
+    const levelEmbed = new EmbedBuilder()
+        .setColor('#FF0000')
+        .setAuthor({
+            name: message.author.username,
+            iconURL: message.author.displayAvatarURL()
+        })
+        .addFields(
+            { name: '⚙️ المستوى الحالي', value: `**${user.level}**`, inline: true },
+            { name: '💫 النقاط الحالية', value: `**${user.xp}**`, inline: true },
+            { name: '🎯 النقاط المطلوبة', value: `**${neededXP}**`, inline: true },
+            { name: '📊 التقدم', value: `${bar}\n**${progressPercent}%**`, inline: false }
+        )
+        .setTimestamp();
+
+    await loadingMsg.edit({ content: null, embeds: [levelEmbed] });
+}
+
+async function addXP(message, args) {
+    const db = getDB();
+    if (!db) return;
+
+    // التحقق من permissions
+    if (!message.member.permissions.has('MANAGE_MESSAGES')) {
+        return message.reply("❌ ليس لديك صلاحيات!");
+    }
+
+    const mentioned = message.mentions.users.first();
+    if (!mentioned) {
+        return message.reply("⚠️ اضكت @User ومية XP\nمثال: !addxp @Pavly 500");
+    }
+
+    const xpAmount = parseInt(args[1]);
+    if (isNaN(xpAmount) || xpAmount <= 0) {
+        return message.reply("⚠️ اكتب رقم صحيح!");
+    }
+
+    const users = db.collection("users");
+    const targetUserId = mentioned.id;
+
+    let user = await users.findOne({ userId: targetUserId });
+    if (!user) {
+        user = {
+            userId: targetUserId,
+            xp: xpAmount,
+            level: 1,
+            username: mentioned.username,
+            avatar: mentioned.displayAvatarURL()
+        };
+        await users.insertOne(user);
+    } else {
+        user.xp += xpAmount;
+        await users.updateOne(
+            { userId: targetUserId },
+            { $set: { xp: user.xp, username: mentioned.username, avatar: mentioned.displayAvatarURL() } }
+        );
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ تم إضافة XP')
+        .addFields(
+            { name: '👤 المستخدم', value: `${mentioned}`, inline: true },
+            { name: '💫 XP المضاف', value: `**+${xpAmount}**`, inline: true },
+            { name: '🔢 إجمالي XP', value: `**${user.xp}**`, inline: true }
+        )
+        .setTimestamp();
+
+    message.reply({ embeds: [embed] });
+}
+
+async function removeXP(message, args) {
+    const db = getDB();
+    if (!db) return;
+
+    if (!message.member.permissions.has('MANAGE_MESSAGES')) {
+        return message.reply("❌ ليس لديك صلاحيات!");
+    }
+
+    const mentioned = message.mentions.users.first();
+    if (!mentioned) {
+        return message.reply("⚠️ اضكت @User ومية XP\nمثال: !removexp @Pavly 500");
+    }
+
+    const xpAmount = parseInt(args[1]);
+    if (isNaN(xpAmount) || xpAmount <= 0) {
+        return message.reply("⚠️ اكتب رقم صحيح!");
+    }
+
+    const users = db.collection("users");
+    const targetUserId = mentioned.id;
+
+    let user = await users.findOne({ userId: targetUserId });
+    if (!user) {
+        return message.reply("❌ المستخدم ما عنده XP!");
+    }
+
+    user.xp = Math.max(0, user.xp - xpAmount);
+    await users.updateOne(
+        { userId: targetUserId },
+        { $set: { xp: user.xp } }
     );
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(120, 150, 80, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar, 40, 70, 160, 160);
-    ctx.restore();
+    const embed = new EmbedBuilder()
+        .setColor('#FF6600')
+        .setTitle('❌ تم حذف XP')
+        .addFields(
+            { name: '👤 المستخدم', value: `${mentioned}`, inline: true },
+            { name: '💫 XP المحذوف', value: `**-${xpAmount}**`, inline: true },
+            { name: '🔢 إجمالي XP', value: `**${user.xp}**`, inline: true }
+        )
+        .setTimestamp();
 
-    // الاسم
-    ctx.fillStyle = "#fff";
-    ctx.font = "30px Arial";
-    ctx.fillText(userObj.username, 250, 80);
-
-    // level
-    ctx.fillStyle = "#facc15";
-    ctx.fillText(`Level: ${data.level}`, 250, 130);
-
-    // hp
-    ctx.fillStyle = "#ef4444";
-    ctx.fillText(`HP: ${data.hp}`, 250, 170);
-
-    // XP BAR
-    const barWidth = 400;
-    const progress = data.xp / (data.level * 100);
-
-    ctx.fillStyle = "#374151";
-    ctx.fillRect(250, 200, barWidth, 25);
-
-    ctx.fillStyle = "#22c55e";
-    ctx.fillRect(250, 200, barWidth * progress, 25);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "18px Arial";
-    ctx.fillText(`${data.xp}/${data.level * 100}`, 260, 218);
-
-    return canvas.toBuffer("image/png");
+    message.reply({ embeds: [embed] });
 }
 
-// 🎯 عرض
-async function getLevel(message, targetUser = null) {
-    const userObj = targetUser || message.author;
-    const user = await getUser(userObj.id);
-
-    const buffer = await createRankCard(userObj, user);
-
-    await message.channel.send({
-        files: [{
-            attachment: buffer,
-            name: "rank.png"
-        }]
-    });
-}
-
-// 🔝 Top
-async function getTop() {
+async function addLevel(message, args) {
     const db = getDB();
-    const users = db.collection("users");
+    if (!db) return;
 
-    return await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
+    if (!message.member.permissions.has('MANAGE_MESSAGES')) {
+        return message.reply("❌ ليس لديك صلاحيات!");
+    }
+
+    const mentioned = message.mentions.users.first();
+    if (!mentioned) {
+        return message.reply("⚠️ اضكت @User ومية Level\nمثال: !addlevel @Pavly 5");
+    }
+
+    const levelAmount = parseInt(args[1]);
+    if (isNaN(levelAmount) || levelAmount <= 0) {
+        return message.reply("⚠️ اكتب رقم صحيح!");
+    }
+
+    const users = db.collection("users");
+    const targetUserId = mentioned.id;
+
+    let user = await users.findOne({ userId: targetUserId });
+    if (!user) {
+        user = {
+            userId: targetUserId,
+            xp: 0,
+            level: levelAmount,
+            username: mentioned.username,
+            avatar: mentioned.displayAvatarURL()
+        };
+        await users.insertOne(user);
+    } else {
+        user.level += levelAmount;
+        await users.updateOne(
+            { userId: targetUserId },
+            { $set: { level: user.level, username: mentioned.username, avatar: mentioned.displayAvatarURL() } }
+        );
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('⬆️ تم إضافة Level')
+        .addFields(
+            { name: '👤 المستخدم', value: `${mentioned}`, inline: true },
+            { name: '📈 Level المضاف', value: `**+${levelAmount}**`, inline: true },
+            { name: '🏆 المستوى الكلي', value: `**${user.level}**`, inline: true }
+        )
+        .setTimestamp();
+
+    message.reply({ embeds: [embed] });
 }
 
-// ➕
-async function addStats(userId, hp, level) {
+async function removeLevel(message, args) {
     const db = getDB();
+    if (!db) return;
+
+    if (!message.member.permissions.has('MANAGE_MESSAGES')) {
+        return message.reply("❌ ليس لديك صلاحيات!");
+    }
+
+    const mentioned = message.mentions.users.first();
+    if (!mentioned) {
+        return message.reply("⚠️ اضكت @User ومية Level\nمثال: !removelevel @Pavly 5");
+    }
+
+    const levelAmount = parseInt(args[1]);
+    if (isNaN(levelAmount) || levelAmount <= 0) {
+        return message.reply("⚠️ اكتب رقم صحيح!");
+    }
+
     const users = db.collection("users");
+    const targetUserId = mentioned.id;
 
-    let user = await getUser(userId);
+    let user = await users.findOne({ userId: targetUserId });
+    if (!user) {
+        return message.reply("❌ المستخدم ما عنده Level!");
+    }
 
-    user.hp += hp;
-    user.level += level;
+    user.level = Math.max(1, user.level - levelAmount);
+    await users.updateOne(
+        { userId: targetUserId },
+        { $set: { level: user.level } }
+    );
 
-    await users.updateOne({ userId }, { $set: user });
+    const embed = new EmbedBuilder()
+        .setColor('#FF6600')
+        .setTitle('⬇️ تم حذف Level')
+        .addFields(
+            { name: '👤 المستخدم', value: `${mentioned}`, inline: true },
+            { name: '📉 Level المحذوف', value: `**-${levelAmount}**`, inline: true },
+            { name: '🏆 المستوى الكلي', value: `**${user.level}**`, inline: true }
+        )
+        .setTimestamp();
+
+    message.reply({ embeds: [embed] });
 }
 
-// ➖
-async function removeStats(userId, hp, level) {
+async function getTopUsers(message) {
     const db = getDB();
+    if (!db) return;
+
     const users = db.collection("users");
+    const topUsers = await users
+        .find()
+        .sort({ level: -1, xp: -1 })
+        .limit(5)
+        .toArray();
 
-    let user = await getUser(userId);
+    if (topUsers.length === 0) {
+        return message.reply("❌ لا يوجد بيانات حتى الآن!");
+    }
 
-    user.hp -= hp;
-    user.level -= level;
+    // الشخص الأول
+    const firstPlace = topUsers[0];
+    const firstEmbed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('🏆 القائمة الذهبية - TOP 5 🏆')
+        .setThumbnail(firstPlace.avatar)
+        .addFields(
+            { 
+                name: '👑 #1 - المرتبة الأولى', 
+                value: `**${firstPlace.username}**\n🎯 Level: **${firstPlace.level}**\n💫 XP: **${firstPlace.xp}**`, 
+                inline: false 
+            }
+        )
+        .setTimestamp();
 
-    if (user.hp < 0) user.hp = 0;
-    if (user.level < 1) user.level = 1;
+    // باقي التوب 5
+    let topList = '';
+    for (let i = 1; i < topUsers.length; i++) {
+        const user = topUsers[i];
+        const neededXP = user.level * 100;
+        const progressPercent = (user.xp / neededXP * 100).toFixed(0);
+        topList += `\n**#${i + 1}** - ${user.username}\n   🎯 Level: ${user.level} | 💫 XP: ${user.xp} | ⏳ ${progressPercent}%\n`;
+    }
 
-    await users.updateOne({ userId }, { $set: user });
+    firstEmbed.addFields(
+        { 
+            name: '📊 باقي المراتب', 
+            value: topList, 
+            inline: false 
+        }
+    );
+
+    message.reply({ embeds: [firstEmbed] });
 }
 
-module.exports = {
-    handleXP,
-    getLevel,
-    getTop,
-    addStats,
-    removeStats
-};
+module.exports = { handleXP, getLevel, addXP, removeXP, addLevel, removeLevel, getTopUsers };
