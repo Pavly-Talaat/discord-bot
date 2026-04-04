@@ -18,7 +18,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🔥 DB
 connectDB();
 
 const client = new Client({
@@ -85,19 +84,18 @@ client.on('messageCreate', async (message) => {
         ]});
     }
 
-    // ================== 💀 OWNER ONLY COMMANDS ==================
+    // ================== 💀 OWNER ONLY ==================
 
-    const ownerOnlyCommands = ["!addxp", "!rexp", "!addlevel", "!relevel"];
+    const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
 
-    if (ownerOnlyCommands.includes(command) && message.author.id !== OWNER_ID) {
-        return message.reply("⚠️ هذا الأمر محظور… خاص بي owner فقط من يتحكم هنا 👑💀");
+    if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
+        return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
     }
 
     // 🔥 addxp
     if (command === "!addxp") {
-        if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
+        if (!mentionedUser || isNaN(amount)) return;
 
         let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
 
@@ -110,9 +108,8 @@ client.on('messageCreate', async (message) => {
 
     // 💀 rexp
     if (command === "!rexp") {
-        if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
+        if (!mentionedUser || isNaN(amount)) return;
 
         let user = await users.findOne({ userId: mentionedUser.id });
         if (!user) return;
@@ -126,9 +123,8 @@ client.on('messageCreate', async (message) => {
 
     // 👑 addlevel
     if (command === "!addlevel") {
-        if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
+        if (!mentionedUser || isNaN(amount)) return;
 
         let user = await users.findOne({ userId: mentionedUser.id }) || { userId: mentionedUser.id, xp: 0, level: 1 };
 
@@ -141,9 +137,8 @@ client.on('messageCreate', async (message) => {
 
     // 💀 relevel
     if (command === "!relevel") {
-        if (!mentionedUser) return message.reply("❌ منشن الشخص");
         const amount = parseInt(args[2]);
-        if (isNaN(amount)) return;
+        if (!mentionedUser || isNaN(amount)) return;
 
         let user = await users.findOne({ userId: mentionedUser.id });
         if (!user) return;
@@ -155,7 +150,7 @@ client.on('messageCreate', async (message) => {
         return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
     }
 
-    // ================== 🔒 rank ==================
+    // ================== 👑 rank ==================
 
     if (command === "!rank") {
 
@@ -165,17 +160,7 @@ client.on('messageCreate', async (message) => {
 
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
-        let user = await users.findOne({ userId: mentionedUser.id });
-        if (!user) return message.reply("❌ مفيش بيانات");
-
-        const level = user.level;
-        const xp = user.xp;
-        const neededXP = level * 100;
-
-        const all = await users.find().sort({ level: -1, xp: -1 }).toArray();
-        const rank = all.findIndex(u => u.userId === mentionedUser.id) + 1;
-
-        return message.reply(`👑 ${mentionedUser} | Level: ${level} | XP: ${xp}/${neededXP} | Rank: #${rank}`);
+        return await getLevel(message, mentionedUser);
     }
 });
 
