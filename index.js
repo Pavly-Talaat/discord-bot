@@ -1,24 +1,21 @@
 const { Client, GatewayIntentBits } = require('discord.js');
+const { startMessages } = require('./messages');
+const { handleXP, getLevel, addXP, removeXP, addLevel, removeLevel, getTopUsers } = require('./levels');
 const express = require('express');
 const { connectDB } = require('./database');
-
-const {
-    handleXP,
-    getLevel,
-    getTop,
-    addStats,
-    removeStats
-} = require('./levels');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Bot is alive 😈');
+    res.send('Bot is running');
 });
 
-app.listen(PORT, '0.0.0.0');
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Server running on port ${PORT}`);
+});
 
+// 🔥 الاتصال بقاعدة البيانات
 connectDB();
 
 const client = new Client({
@@ -31,13 +28,9 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// 👑 Admin
-function isAdmin(member) {
-    return member.permissions.has("Administrator");
-}
-
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
+    startMessages(client);
 });
 
 client.on('messageCreate', async (message) => {
@@ -45,63 +38,47 @@ client.on('messageCreate', async (message) => {
 
     await handleXP(message);
 
-    const args = message.content.split(" ");
-    const cmd = args[0];
-
-    if (cmd === "!ping") {
-        message.reply("🏓 Pong from hell!");
+    // !ping
+    if (message.content === "!ping") {
+        message.reply("🏓 Pong from Home!");
     }
 
-    if (cmd === "!level") {
-        const user = message.mentions.users.first();
-        await getLevel(message, user);
+    // !level
+    if (message.content === "!level") {
+        await getLevel(message);
     }
 
-    if (cmd === "!top") {
-        const top = await getTop();
-
-        let text = "👑 TOP 5 👑\n\n";
-
-        const firstUser = await client.users.fetch(top[0].userId);
-
-        text += `🥇 ${firstUser.username} (Level ${top[0].level})\n\n`;
-
-        for (let i = 1; i < top.length; i++) {
-            text += `#${i + 1} - Level ${top[i].level}\n`;
-        }
-
-        await message.channel.send({
-            content: text,
-            files: [{
-                attachment: firstUser.displayAvatarURL({ extension: 'png', size: 512 }),
-                name: "top1.png"
-            }]
-        });
+    // !top
+    if (message.content === "!top") {
+        await getTopUsers(message);
     }
 
-    if (cmd === "!add") {
-        if (!isAdmin(message.member)) return;
-
-        const user = message.mentions.users.first();
-        const hp = parseInt(args[2]);
-        const level = parseInt(args[3]);
-
-        await addStats(user.id, hp, level);
-
-        message.reply("😈 تم التعزيز");
+    // !addxp @user <amount>
+    if (message.content.startsWith("!addxp")) {
+        const args = message.content.split(" ");
+        await addXP(message, args);
     }
 
-    if (cmd === "!remove") {
-        if (!isAdmin(message.member)) return;
+    // !removexp @user <amount>
+    if (message.content.startsWith("!removexp")) {
+        const args = message.content.split(" ");
+        await removeXP(message, args);
+    }
 
-        const user = message.mentions.users.first();
-        const hp = parseInt(args[2]);
-        const level = parseInt(args[3]);
+    // !addlevel @user <amount>
+    if (message.content.startsWith("!addlevel")) {
+        const args = message.content.split(" ");
+        await addLevel(message, args);
+    }
 
-        await removeStats(user.id, hp, level);
-
-        message.reply("💀 تم الإضعاف");
+    // !removelevel @user <amount>
+    if (message.content.startsWith("!removelevel")) {
+        const args = message.content.split(" ");
+        await removeLevel(message, args);
     }
 });
+
+process.on('unhandledRejection', err => console.error(err));
+process.on('uncaughtException', err => console.error(err));
 
 client.login(TOKEN);
