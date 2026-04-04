@@ -203,7 +203,7 @@ client.on('messageCreate', async (message) => {
         const totalBars = 10;
         const filledBars = Math.round(percentage * totalBars);
         const emptyBars = totalBars - filledBars;
-        const xpBar = "⬛".repeat(filledBars) + "⬜".repeat(emptyBars);
+        const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
 
         const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
         const index = allUsers.findIndex(u => u.userId === userId);
