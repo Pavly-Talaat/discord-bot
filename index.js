@@ -61,7 +61,7 @@ client.on('messageCreate', async (message) => {
         return message.reply("🏓 Pong!");
     }
 
-    // 🟢 level
+    // 🟢 level (لنفسك)
     if (command === "!level") {
         return await getLevel(message);
     }
@@ -184,16 +184,65 @@ client.on('messageCreate', async (message) => {
         return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
     }
 
-    // 📊 rank any user
+    // ================== 📊 RANK (زي level لأي حد) ==================
+
     if (command === "!rank") {
         if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
+        const userId = mentionedUser.id;
+
+        let user = await users.findOne({ userId });
+
+        if (!user) {
+            return message.reply("❌ الشخص ده معندوش بيانات");
+        }
+
+        const level = user.level;
+        const xp = user.xp;
+        const neededXP = level * 100;
+
+        // 📊 XP Bar
+        const percentage = xp / neededXP;
+        const totalBars = 10;
+        const filledBars = Math.round(percentage * totalBars);
+        const emptyBars = totalBars - filledBars;
+        const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+
+        // 👑 Rank
         const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
-        const index = allUsers.findIndex(u => u.userId === mentionedUser.id);
+        const index = allUsers.findIndex(u => u.userId === userId);
+        const rank = index === -1 ? "?" : index + 1;
 
-        if (index === -1) return message.reply("❌ مفيش بيانات");
+        const member = message.guild.members.cache.get(userId);
+        const name = member?.displayName || mentionedUser.username;
 
-        return message.reply(`👑 رتبة ${mentionedUser} هي #${index + 1}`);
+        const embed = new EmbedBuilder()
+            .setColor("#2b2d31")
+            .setAuthor({
+                name: `📊 إحصائيات ${name}`,
+                iconURL: mentionedUser.displayAvatarURL()
+            })
+            .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                {
+                    name: "⭐ المستوى",
+                    value: `\`${level}\``,
+                    inline: true
+                },
+                {
+                    name: "👑 الرتبة",
+                    value: `\`#${rank}\``,
+                    inline: true
+                },
+                {
+                    name: "✨ النقاط",
+                    value: `\`${xp} / ${neededXP}\`\n${xpBar}`,
+                    inline: false
+                }
+            )
+            .setFooter({ text: "Devil Bot 😈" });
+
+        message.reply({ embeds: [embed] });
     }
 });
 
