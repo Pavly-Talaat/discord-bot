@@ -30,6 +30,11 @@ const client = new Client({
 });
 
 const TOKEN = process.env.TOKEN;
+const OWNER_ID = "880803449632079883";
+
+function isOwner(message) {
+    return message.author.id === OWNER_ID;
+}
 
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
@@ -39,26 +44,30 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // 🔥 XP
+    const db = getDB();
+    if (!db) return;
+
+    const users = db.collection("users");
+
+    // 🔥 XP System
     await handleXP(message);
 
+    const args = message.content.split(" ");
+    const command = args[0];
+    const mentionedUser = message.mentions.users.first();
+
     // 🟢 ping
-    if (message.content === "!ping") {
+    if (command === "!ping") {
         return message.reply("🏓 Pong!");
     }
 
     // 🟢 level
-    if (message.content === "!level") {
+    if (command === "!level") {
         return await getLevel(message);
     }
 
-    // 🏆 Best 5 Players (👑 نسخة احترافية)
-    if (message.content === "!best") {
-        const db = getDB();
-        if (!db) return;
-
-        const users = db.collection("users");
-
+    // 🏆 Top 5 Players
+    if (command === "!top") {
         const topUsers = await users
             .find()
             .sort({ level: -1, xp: -1 })
@@ -82,32 +91,109 @@ client.on('messageCreate', async (message) => {
             description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
         }
 
-        // 👑 Top 1
-        let topUser = null;
-        try {
-            topUser = await client.users.fetch(topUsers[0].userId);
-        } catch (err) {
-            console.log("❌ Failed to fetch top user");
-        }
-
-        let title = "🏆 Best 5 Players";
-
-        if (topUser) {
-            title = `👑 ${topUser.username} | Top Player`;
-        }
-
         const embed = new EmbedBuilder()
             .setColor("#FFD700")
-            .setTitle(title)
+            .setTitle("🏆 Top 5 Players")
             .setDescription(description)
             .setFooter({ text: "Devil Bot 😈" });
 
-        if (topUser) {
-            const avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
-            embed.setImage(avatar);
-        }
-
         message.reply({ embeds: [embed] });
+    }
+
+    // ================== 👑 OWNER COMMANDS ==================
+
+    // 🔥 add xp
+    if (command === "!addxp" && isOwner(message)) {
+        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+        const amount = parseInt(args[2]);
+        if (isNaN(amount)) return;
+
+        let user = await users.findOne({ userId: mentionedUser.id });
+        if (!user) user = { userId: mentionedUser.id, xp: 0, level: 1 };
+
+        user.xp += amount;
+
+        await users.updateOne(
+            { userId: mentionedUser.id },
+            { $set: user },
+            { upsert: true }
+        );
+
+        return message.reply(`🔥 +${amount} XP → ${mentionedUser}`);
+    }
+
+    // 💀 rexp
+    if (command === "!rexp" && isOwner(message)) {
+        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+        const amount = parseInt(args[2]);
+        if (isNaN(amount)) return;
+
+        let user = await users.findOne({ userId: mentionedUser.id });
+        if (!user) return;
+
+        user.xp = Math.max(0, user.xp - amount);
+
+        await users.updateOne(
+            { userId: mentionedUser.id },
+            { $set: user }
+        );
+
+        return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
+    }
+
+    // 👑 add level
+    if (command === "!addlevel" && isOwner(message)) {
+        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+        const amount = parseInt(args[2]);
+        if (isNaN(amount)) return;
+
+        let user = await users.findOne({ userId: mentionedUser.id });
+        if (!user) user = { userId: mentionedUser.id, xp: 0, level: 1 };
+
+        user.level += amount;
+
+        await users.updateOne(
+            { userId: mentionedUser.id },
+            { $set: user },
+            { upsert: true }
+        );
+
+        return message.reply(`👑 +${amount} Level → ${mentionedUser}`);
+    }
+
+    // 💀 relevel
+    if (command === "!relevel" && isOwner(message)) {
+        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+        const amount = parseInt(args[2]);
+        if (isNaN(amount)) return;
+
+        let user = await users.findOne({ userId: mentionedUser.id });
+        if (!user) return;
+
+        user.level = Math.max(1, user.level - amount);
+
+        await users.updateOne(
+            { userId: mentionedUser.id },
+            { $set: user }
+        );
+
+        return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
+    }
+
+    // 📊 rank any user
+    if (command === "!rank") {
+        if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+        const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
+        const index = allUsers.findIndex(u => u.userId === mentionedUser.id);
+
+        if (index === -1) return message.reply("❌ مفيش بيانات");
+
+        return message.reply(`👑 رتبة ${mentionedUser} هي #${index + 1}`);
     }
 });
 
