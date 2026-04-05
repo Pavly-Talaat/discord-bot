@@ -53,7 +53,6 @@ client.on('messageCreate', async (message) => {
 
         const users = db.collection("users");
 
-        // 🔥 XP System
         await handleXP(message);
 
         const args = message.content.split(" ");
@@ -61,39 +60,25 @@ client.on('messageCreate', async (message) => {
         const mentionedUser = message.mentions.users.first();
 
         // 🟢 ping
-        if (command === "!ping") {
-            return message.reply("🏓 Pong!");
-        }
+        if (command === "!ping") return message.reply("🏓 Pong!");
 
         // 🟢 level
-        if (command === "!level") {
-            return await getLevel(message);
-        }
+        if (command === "!level") return await getLevel(message);
 
         // ================== 🏆 TOP ==================
         if (command === "!top") {
+            const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
 
-            const topUsers = await users
-                .find()
-                .sort({ level: -1, xp: -1 })
-                .limit(5)
-                .toArray();
-
-            if (!topUsers.length) {
-                return message.reply("❌ مفيش بيانات لسه");
-            }
+            if (!topUsers.length) return message.reply("❌ مفيش بيانات");
 
             let description = "";
 
             for (let i = 0; i < topUsers.length; i++) {
                 const u = topUsers[i];
 
-                let medal = "🔹";
-                if (i === 0) medal = "🥇";
-                else if (i === 1) medal = "🥈";
-                else if (i === 2) medal = "🥉";
+                let medal = ["🥇", "🥈", "🥉"][i] || "🔹";
 
-                description += `${medal} **#${i + 1}** - <@${u.userId}> (Level ${u.level})\n`;
+                description += `${medal} #${i + 1} - <@${u.userId}> (Level ${u.level})\n`;
             }
 
             let topUser = null;
@@ -102,10 +87,7 @@ client.on('messageCreate', async (message) => {
             } catch {}
 
             let title = "🏆 Best 5 Players";
-
-            if (topUser) {
-                title = `👑 ${topUser.username.toUpperCase()} | TOP PLAYER`;
-            }
+            if (topUser) title = `👑 ${topUser.username.toUpperCase()} | TOP PLAYER`;
 
             const embed = new EmbedBuilder()
                 .setColor("#FFD700")
@@ -123,10 +105,10 @@ client.on('messageCreate', async (message) => {
         }
 
         // ================== 💀 OWNER ONLY ==================
-        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
+        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel", "!alllevels", "!clear"];
 
         if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
-            return message.reply("⚠️ هذا الأمر محظور… خاص بي owner فقط من يتحكم هنا 👑💀");
+            return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
         }
 
         // 🔥 addxp
@@ -191,6 +173,45 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
         }
 
+        // ================== 👑 ALL LEVELS ==================
+        if (command === "!alllevels") {
+
+            const allUsers = await users.find().sort({ level: -1, xp: -1 }).limit(20).toArray();
+
+            if (!allUsers.length) return message.reply("❌ مفيش بيانات");
+
+            let desc = "";
+
+            for (let i = 0; i < allUsers.length; i++) {
+                const u = allUsers[i];
+                desc += `👑 #${i + 1} - <@${u.userId}>\n⭐ Level: ${u.level} | XP: ${u.xp}\n\n`;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor("#00ff99")
+                .setTitle("📊 All Users Levels")
+                .setDescription(desc)
+                .setFooter({ text: "Devil System 😈" });
+
+            return message.reply({ embeds: [embed] });
+        }
+
+        // ================== 💀 CLEAR ==================
+        if (command === "!clear") {
+
+            const amount = parseInt(args[1]);
+
+            if (isNaN(amount) || amount <= 0 || amount > 100) {
+                return message.reply("❌ اكتب رقم من 1 لـ 100");
+            }
+
+            await message.channel.bulkDelete(amount, true);
+
+            return message.channel.send(`💀 تم حذف ${amount} رسالة`).then(msg => {
+                setTimeout(() => msg.delete(), 3000);
+            });
+        }
+
         // ================== 🔒 RANK ==================
         if (command === "!rank") {
 
@@ -202,7 +223,6 @@ client.on('messageCreate', async (message) => {
 
             const userId = mentionedUser.id;
 
-            // 🔥 ضمان وجود المستخدم
             await users.updateOne(
                 { userId },
                 { $setOnInsert: { userId, xp: 0, level: 1 } },
@@ -216,10 +236,8 @@ client.on('messageCreate', async (message) => {
             const neededXP = level * 100;
 
             const percentage = xp / neededXP;
-            const totalBars = 10;
-            const filledBars = Math.round(percentage * totalBars);
-            const emptyBars = totalBars - filledBars;
-            const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+            const bars = Math.round(percentage * 10);
+            const xpBar = "█".repeat(bars) + "░".repeat(10 - bars);
 
             const rank = await users.countDocuments({
                 $or: [
