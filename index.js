@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { startMessages } = require('./messages');
 const { handleXP, getLevel } = require('./levels');
 const { getDB, connectDB } = require('./database');
@@ -50,26 +50,22 @@ client.on('messageCreate', async (message) => {
         const command = args[0];
         const mentionedUser = message.mentions.users.first();
 
-        // ================== 👤 USER COMMANDS ==================
+        // ================== 👤 USER ==================
 
-        // 🟢 level
         if (command === "!level") {
             return await getLevel(message);
         }
 
-        // 🏆 top
         if (command === "!top") {
 
             const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
 
-            if (!topUsers.length) return message.reply("❌ مفيش بيانات");
-
-            let description = "";
+            let desc = "";
 
             for (let i = 0; i < topUsers.length; i++) {
-                const u = topUsers[i];
                 const medal = ["🥇", "🥈", "🥉"][i] || "🔹";
-                description += `${medal} #${i + 1} - <@${u.userId}> (Level ${u.level})\n`;
+                const u = topUsers[i];
+                desc += `${medal} #${i + 1} - <@${u.userId}> (Level ${u.level})\n`;
             }
 
             let topUser = null;
@@ -83,7 +79,7 @@ client.on('messageCreate', async (message) => {
             const embed = new EmbedBuilder()
                 .setColor("#FFD700")
                 .setTitle(title)
-                .setDescription(description)
+                .setDescription(desc)
                 .setFooter({ text: "🔥 DEVIL SYSTEM" })
                 .setTimestamp();
 
@@ -97,21 +93,16 @@ client.on('messageCreate', async (message) => {
 
         // ================== 💀 OWNER CHECK ==================
         if (message.author.id !== OWNER_ID) {
-            return message.reply("❌ الأمر مرفوض… هذا النظام تحت سيطرة الأونر فقط 👑💀");
+            return message.reply("❌ الأمر مرفوض… الأونر فقط 👑💀");
         }
 
-        // ================== 👑 OWNER COMMANDS ==================
+        // ================== 👑 OWNER ==================
 
-        if (command === "!ping") {
-            return message.reply("🏓 Pong!");
-        }
+        if (command === "!ping") return message.reply("🏓 Pong!");
 
-        // 🔥 addxp
         if (command === "!addxp") {
-            if (!mentionedUser) return message.reply("❌ منشن الشخص");
-
             const amount = parseInt(args[2]);
-            if (isNaN(amount)) return;
+            if (!mentionedUser || isNaN(amount)) return;
 
             await users.updateOne(
                 { userId: mentionedUser.id },
@@ -119,91 +110,72 @@ client.on('messageCreate', async (message) => {
                 { upsert: true }
             );
 
-            return message.reply(`🔥 +${amount} XP → ${mentionedUser}`);
+            return message.reply(`🔥 +${amount} XP`);
         }
 
-        // 💀 rexp
         if (command === "!rexp") {
-            if (!mentionedUser) return message.reply("❌ منشن الشخص");
-
             const amount = parseInt(args[2]);
-            if (isNaN(amount)) return;
+            if (!mentionedUser || isNaN(amount)) return;
 
             await users.updateOne(
                 { userId: mentionedUser.id },
                 { $inc: { xp: -amount } }
             );
 
-            return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
+            return message.reply(`💀 -${amount} XP`);
         }
 
-        // 👑 addlevel
         if (command === "!addlevel") {
-            if (!mentionedUser) return message.reply("❌ منشن الشخص");
-
             const amount = parseInt(args[2]);
-            if (isNaN(amount)) return;
+            if (!mentionedUser || isNaN(amount)) return;
 
             await users.updateOne(
                 { userId: mentionedUser.id },
-                { $inc: { level: amount }, $setOnInsert: { xp: 0 } },
+                { $inc: { level: amount } },
                 { upsert: true }
             );
 
-            return message.reply(`👑 +${amount} Level → ${mentionedUser}`);
+            return message.reply(`👑 +${amount} Level`);
         }
 
-        // 💀 relevel
         if (command === "!relevel") {
-            if (!mentionedUser) return message.reply("❌ منشن الشخص");
-
             const amount = parseInt(args[2]);
-            if (isNaN(amount)) return;
+            if (!mentionedUser || isNaN(amount)) return;
 
             await users.updateOne(
                 { userId: mentionedUser.id },
                 { $inc: { level: -amount } }
             );
 
-            return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
+            return message.reply(`💀 -${amount} Level`);
         }
 
-        // 👑 alllevels
         if (command === "!alllevels") {
 
-            const allUsers = await users.find().sort({ level: -1, xp: -1 }).limit(20).toArray();
+            const all = await users.find().sort({ level: -1, xp: -1 }).limit(20).toArray();
 
             let desc = "";
-
-            for (let i = 0; i < allUsers.length; i++) {
-                const u = allUsers[i];
-                desc += `👑 #${i + 1} - <@${u.userId}>\n⭐ Level: ${u.level} | XP: ${u.xp}\n\n`;
+            for (let i = 0; i < all.length; i++) {
+                desc += `#${i + 1} <@${all[i].userId}> - Lvl ${all[i].level} | XP ${all[i].xp}\n`;
             }
 
             return message.reply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setTitle("📊 All Users")
-                        .setDescription(desc)
-                ]
+                embeds: [new EmbedBuilder().setTitle("📊 All Users").setDescription(desc)]
             });
         }
 
-        // 💀 clear
         if (command === "!clear") {
             const amount = parseInt(args[1]);
-            if (isNaN(amount) || amount <= 0 || amount > 100) {
-                return message.reply("❌ رقم من 1 لـ 100");
-            }
+            if (isNaN(amount)) return;
 
             await message.channel.bulkDelete(amount, true);
-            return message.channel.send(`💀 تم حذف ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
+            return message.channel.send(`💀 Deleted ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
         }
 
-        // 👑 rank
+        // ================== 👑 RANK (ENGLISH DESIGN) ==================
         if (command === "!rank") {
 
-            if (!mentionedUser) return message.reply("❌ منشن الشخص");
+            if (!mentionedUser) return message.reply("❌ Mention a user");
 
             const userId = mentionedUser.id;
 
@@ -232,8 +204,17 @@ client.on('messageCreate', async (message) => {
 
             const embed = new EmbedBuilder()
                 .setColor("#2b2d31")
-                .setTitle(`📊 ${mentionedUser.username}`)
-                .setDescription(`⭐ Level: ${level}\n👑 Rank: #${rank}\n✨ XP: ${xp}/${neededXP}\n${xpBar}`);
+                .setAuthor({
+                    name: `📊 ${mentionedUser.username} Stats`,
+                    iconURL: mentionedUser.displayAvatarURL()
+                })
+                .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: "⭐ Level", value: `\`${level}\``, inline: true },
+                    { name: "👑 Rank", value: `\`#${rank}\``, inline: true },
+                    { name: "✨ XP", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
+                )
+                .setFooter({ text: "Devil Bot 😈" });
 
             return message.reply({ embeds: [embed] });
         }
