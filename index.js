@@ -30,15 +30,6 @@ const client = new Client({
 const TOKEN = process.env.TOKEN;
 const OWNER_ID = "880803449632079883";
 
-// 👑 صلاحيات rank
-function hasPermission(message) {
-    return (
-        message.author.id === OWNER_ID ||
-        message.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-        message.member.roles.cache.some(role => role.name === "VIP")
-    );
-}
-
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
@@ -59,14 +50,16 @@ client.on('messageCreate', async (message) => {
         const command = args[0];
         const mentionedUser = message.mentions.users.first();
 
-        // 🟢 ping
-        if (command === "!ping") return message.reply("🏓 Pong!");
+        // ================== 👤 USER COMMANDS ==================
 
         // 🟢 level
-        if (command === "!level") return await getLevel(message);
+        if (command === "!level") {
+            return await getLevel(message);
+        }
 
-        // ================== 🏆 TOP ==================
+        // 🏆 top
         if (command === "!top") {
+
             const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
 
             if (!topUsers.length) return message.reply("❌ مفيش بيانات");
@@ -75,9 +68,7 @@ client.on('messageCreate', async (message) => {
 
             for (let i = 0; i < topUsers.length; i++) {
                 const u = topUsers[i];
-
-                let medal = ["🥇", "🥈", "🥉"][i] || "🔹";
-
+                const medal = ["🥇", "🥈", "🥉"][i] || "🔹";
                 description += `${medal} #${i + 1} - <@${u.userId}> (Level ${u.level})\n`;
             }
 
@@ -104,11 +95,15 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // ================== 💀 OWNER ONLY ==================
-        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel", "!alllevels", "!clear"];
+        // ================== 💀 OWNER CHECK ==================
+        if (message.author.id !== OWNER_ID) {
+            return message.reply("❌ الأمر مرفوض… هذا النظام تحت سيطرة الأونر فقط 👑💀");
+        }
 
-        if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
-            return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
+        // ================== 👑 OWNER COMMANDS ==================
+
+        if (command === "!ping") {
+            return message.reply("🏓 Pong!");
         }
 
         // 🔥 addxp
@@ -173,12 +168,10 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
         }
 
-        // ================== 👑 ALL LEVELS ==================
+        // 👑 alllevels
         if (command === "!alllevels") {
 
             const allUsers = await users.find().sort({ level: -1, xp: -1 }).limit(20).toArray();
-
-            if (!allUsers.length) return message.reply("❌ مفيش بيانات");
 
             let desc = "";
 
@@ -187,37 +180,28 @@ client.on('messageCreate', async (message) => {
                 desc += `👑 #${i + 1} - <@${u.userId}>\n⭐ Level: ${u.level} | XP: ${u.xp}\n\n`;
             }
 
-            const embed = new EmbedBuilder()
-                .setColor("#00ff99")
-                .setTitle("📊 All Users Levels")
-                .setDescription(desc)
-                .setFooter({ text: "Devil System 😈" });
-
-            return message.reply({ embeds: [embed] });
-        }
-
-        // ================== 💀 CLEAR ==================
-        if (command === "!clear") {
-
-            const amount = parseInt(args[1]);
-
-            if (isNaN(amount) || amount <= 0 || amount > 100) {
-                return message.reply("❌ اكتب رقم من 1 لـ 100");
-            }
-
-            await message.channel.bulkDelete(amount, true);
-
-            return message.channel.send(`💀 تم حذف ${amount} رسالة`).then(msg => {
-                setTimeout(() => msg.delete(), 3000);
+            return message.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle("📊 All Users")
+                        .setDescription(desc)
+                ]
             });
         }
 
-        // ================== 🔒 RANK ==================
-        if (command === "!rank") {
-
-            if (!hasPermission(message)) {
-                return message.reply("❌ الأمر مرفوض");
+        // 💀 clear
+        if (command === "!clear") {
+            const amount = parseInt(args[1]);
+            if (isNaN(amount) || amount <= 0 || amount > 100) {
+                return message.reply("❌ رقم من 1 لـ 100");
             }
+
+            await message.channel.bulkDelete(amount, true);
+            return message.channel.send(`💀 تم حذف ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
+        }
+
+        // 👑 rank
+        if (command === "!rank") {
 
             if (!mentionedUser) return message.reply("❌ منشن الشخص");
 
@@ -246,34 +230,16 @@ client.on('messageCreate', async (message) => {
                 ]
             }) + 1;
 
-            let member;
-            try {
-                member = await message.guild.members.fetch(userId);
-            } catch {
-                member = null;
-            }
-
-            const name = member?.displayName || mentionedUser.username;
-
             const embed = new EmbedBuilder()
                 .setColor("#2b2d31")
-                .setAuthor({
-                    name: `📊 إحصائيات ${name}`,
-                    iconURL: mentionedUser.displayAvatarURL()
-                })
-                .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
-                .addFields(
-                    { name: "⭐ المستوى", value: `\`${level}\``, inline: true },
-                    { name: "👑 الرتبة", value: `\`#${rank}\``, inline: true },
-                    { name: "✨ النقاط", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
-                )
-                .setFooter({ text: "Devil Bot 😈" });
+                .setTitle(`📊 ${mentionedUser.username}`)
+                .setDescription(`⭐ Level: ${level}\n👑 Rank: #${rank}\n✨ XP: ${xp}/${neededXP}\n${xpBar}`);
 
             return message.reply({ embeds: [embed] });
         }
 
     } catch (err) {
-        console.error("❌ ERROR:", err);
+        console.error(err);
     }
 });
 
