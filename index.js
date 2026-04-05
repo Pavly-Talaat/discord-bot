@@ -136,14 +136,9 @@ client.on('messageCreate', async (message) => {
             const amount = parseInt(args[2]);
             if (isNaN(amount)) return;
 
-            let user = await users.findOne({ userId: mentionedUser.id }) 
-                || { userId: mentionedUser.id, xp: 0, level: 1 };
-
-            user.xp += amount;
-
             await users.updateOne(
                 { userId: mentionedUser.id },
-                { $set: user },
+                { $inc: { xp: amount }, $setOnInsert: { level: 1 } },
                 { upsert: true }
             );
 
@@ -157,14 +152,9 @@ client.on('messageCreate', async (message) => {
             const amount = parseInt(args[2]);
             if (isNaN(amount)) return;
 
-            let user = await users.findOne({ userId: mentionedUser.id });
-            if (!user) return;
-
-            user.xp = Math.max(0, user.xp - amount);
-
             await users.updateOne(
                 { userId: mentionedUser.id },
-                { $set: user }
+                { $inc: { xp: -amount } }
             );
 
             return message.reply(`💀 -${amount} XP ← ${mentionedUser}`);
@@ -177,14 +167,9 @@ client.on('messageCreate', async (message) => {
             const amount = parseInt(args[2]);
             if (isNaN(amount)) return;
 
-            let user = await users.findOne({ userId: mentionedUser.id }) 
-                || { userId: mentionedUser.id, xp: 0, level: 1 };
-
-            user.level += amount;
-
             await users.updateOne(
                 { userId: mentionedUser.id },
-                { $set: user },
+                { $inc: { level: amount }, $setOnInsert: { xp: 0 } },
                 { upsert: true }
             );
 
@@ -198,20 +183,15 @@ client.on('messageCreate', async (message) => {
             const amount = parseInt(args[2]);
             if (isNaN(amount)) return;
 
-            let user = await users.findOne({ userId: mentionedUser.id });
-            if (!user) return;
-
-            user.level = Math.max(1, user.level - amount);
-
             await users.updateOne(
                 { userId: mentionedUser.id },
-                { $set: user }
+                { $inc: { level: -amount } }
             );
 
             return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
         }
 
-        // ================== 🔒 RANK (FIXED 100%) ==================
+        // ================== 🔒 RANK ==================
         if (command === "!rank") {
 
             if (!hasPermission(message)) {
@@ -222,11 +202,14 @@ client.on('messageCreate', async (message) => {
 
             const userId = mentionedUser.id;
 
-            const user = await users.findOne({ userId });
+            // 🔥 ضمان وجود المستخدم
+            await users.updateOne(
+                { userId },
+                { $setOnInsert: { userId, xp: 0, level: 1 } },
+                { upsert: true }
+            );
 
-            if (!user) {
-                return message.reply("❌ الشخص ده معندوش بيانات");
-            }
+            const user = await users.findOne({ userId });
 
             const level = user.level;
             const xp = user.xp;
@@ -238,11 +221,13 @@ client.on('messageCreate', async (message) => {
             const emptyBars = totalBars - filledBars;
             const xpBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
 
-            const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
-            const index = allUsers.findIndex(u => u.userId === userId);
-            const rank = index === -1 ? "?" : index + 1;
+            const rank = await users.countDocuments({
+                $or: [
+                    { level: { $gt: level } },
+                    { level: level, xp: { $gt: xp } }
+                ]
+            }) + 1;
 
-            // 🔥 FIX الحقيقي هنا
             let member;
             try {
                 member = await message.guild.members.fetch(userId);
@@ -273,8 +258,5 @@ client.on('messageCreate', async (message) => {
         console.error("❌ ERROR:", err);
     }
 });
-
-process.on('unhandledRejection', err => console.error(err));
-process.on('uncaughtException', err => console.error(err));
 
 client.login(TOKEN);
