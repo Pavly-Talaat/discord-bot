@@ -126,7 +126,7 @@ client.on('messageCreate', async (message) => {
         const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel"];
 
         if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
-            return message.reply("⚠️ هذا الأمر محظور… خاص بي owner فقط من يتحكم هنا 👑💀");
+            return message.reply("⚠️ هذا الأمر محظور… ملك الشياطين فقط 👑💀");
         }
 
         // 🔥 addxp
@@ -211,7 +211,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} Level ← ${mentionedUser}`);
         }
 
-        // ================== 🔒 RANK (مضمون 100%) ==================
+        // ================== 🔒 RANK (FIXED 100%) ==================
         if (command === "!rank") {
 
             if (!hasPermission(message)) {
@@ -242,7 +242,14 @@ client.on('messageCreate', async (message) => {
             const index = allUsers.findIndex(u => u.userId === userId);
             const rank = index === -1 ? "?" : index + 1;
 
-            const member = message.guild.members.cache.get(userId);
+            // 🔥 FIX الحقيقي هنا
+            let member;
+            try {
+                member = await message.guild.members.fetch(userId);
+            } catch {
+                member = null;
+            }
+
             const name = member?.displayName || mentionedUser.username;
 
             const embed = new EmbedBuilder()
