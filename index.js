@@ -50,7 +50,7 @@ client.on('messageCreate', async (message) => {
         const command = args[0];
         const mentionedUser = message.mentions.users.first();
 
-        // ================== 👤 USER ==================
+        // ================== 👤 USERS ==================
 
         if (command === "!level") {
             return await getLevel(message);
@@ -91,7 +91,7 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // ================== 💀 OWNER CHECK ==================
+        // ================== 💀 OWNER ONLY ==================
         if (message.author.id !== OWNER_ID) {
             return message.reply("❌ الأمر مرفوض… الأونر فقط 👑💀");
         }
@@ -172,7 +172,7 @@ client.on('messageCreate', async (message) => {
             return message.channel.send(`💀 Deleted ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
         }
 
-        // ================== 👑 RANK (ENGLISH DESIGN) ==================
+        // ================== 👑 RANK (FINAL DESIGN) ==================
         if (command === "!rank") {
 
             if (!mentionedUser) return message.reply("❌ Mention a user");
@@ -210,9 +210,26 @@ client.on('messageCreate', async (message) => {
                 })
                 .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true }))
                 .addFields(
-                    { name: "⭐ Level", value: `\`${level}\``, inline: true },
-                    { name: "👑 Rank", value: `\`#${rank}\``, inline: true },
-                    { name: "✨ XP", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
+                    {
+                        name: "⭐ Level",
+                        value: `\`${level}\``,
+                        inline: true
+                    },
+                    {
+                        name: "👑 Rank",
+                        value: `\`#${rank}\``,
+                        inline: true
+                    },
+                    {
+                        name: "\u200B",
+                        value: "\u200B",
+                        inline: true
+                    },
+                    {
+                        name: "✨ XP",
+                        value: `\`${xp} / ${neededXP}\`\n${xpBar}`,
+                        inline: false
+                    }
                 )
                 .setFooter({ text: "Devil Bot 😈" });
 
