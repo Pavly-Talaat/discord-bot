@@ -30,6 +30,12 @@ const client = new Client({
 const TOKEN = process.env.TOKEN;
 const OWNER_ID = "880803449632079883";
 
+// 🎯 PREFIX
+const prefix = "!";
+
+// 👑 أوامر الأونر فقط
+const ownerCommands = ["ping", "addxp", "rexp", "addlevel", "relevel", "alllevels", "clear"];
+
 client.once('ready', () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
     startMessages(client);
@@ -44,19 +50,30 @@ client.on('messageCreate', async (message) => {
 
         const users = db.collection("users");
 
+        // 🔥 XP system شغال على أي رسالة
         await handleXP(message);
 
-        const args = message.content.split(" ");
-        const command = args[0];
+        // ❌ تجاهل أي رسالة مش أمر
+        if (!message.content.startsWith(prefix)) return;
+
+        const args = message.content.slice(prefix.length).trim().split(/ +/);
+        const command = args[0].toLowerCase();
         const mentionedUser = message.mentions.users.first();
+
+        // 👑 حماية أوامر الأونر فقط
+        if (ownerCommands.includes(command)) {
+            if (message.author.id !== OWNER_ID) {
+                return message.reply("❌ الأمر مرفوض… الأونر فقط 👑💀");
+            }
+        }
 
         // ================== 👤 USER ==================
 
-        if (command === "!level") {
+        if (command === "level") {
             return await getLevel(message);
         }
 
-        if (command === "!top") {
+        if (command === "top") {
 
             const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
 
@@ -91,16 +108,11 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // ================== 💀 OWNER CHECK ==================
-        if (message.author.id !== OWNER_ID) {
-            return message.reply("❌ الأمر مرفوض… الأونر فقط 👑💀");
-        }
-
         // ================== 👑 OWNER ==================
 
-        if (command === "!ping") return message.reply("🏓 Pong!");
+        if (command === "ping") return message.reply("🏓 Pong!");
 
-        if (command === "!addxp") {
+        if (command === "addxp") {
             const amount = parseInt(args[2]);
             if (!mentionedUser || isNaN(amount)) return;
 
@@ -113,7 +125,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`🔥 +${amount} XP`);
         }
 
-        if (command === "!rexp") {
+        if (command === "rexp") {
             const amount = parseInt(args[2]);
             if (!mentionedUser || isNaN(amount)) return;
 
@@ -125,7 +137,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} XP`);
         }
 
-        if (command === "!addlevel") {
+        if (command === "addlevel") {
             const amount = parseInt(args[2]);
             if (!mentionedUser || isNaN(amount)) return;
 
@@ -138,7 +150,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`👑 +${amount} Level`);
         }
 
-        if (command === "!relevel") {
+        if (command === "relevel") {
             const amount = parseInt(args[2]);
             if (!mentionedUser || isNaN(amount)) return;
 
@@ -150,7 +162,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(`💀 -${amount} Level`);
         }
 
-        if (command === "!alllevels") {
+        if (command === "alllevels") {
 
             const all = await users.find().sort({ level: -1, xp: -1 }).limit(20).toArray();
 
@@ -164,7 +176,7 @@ client.on('messageCreate', async (message) => {
             });
         }
 
-        if (command === "!clear") {
+        if (command === "clear") {
             const amount = parseInt(args[1]);
             if (isNaN(amount)) return;
 
@@ -172,8 +184,9 @@ client.on('messageCreate', async (message) => {
             return message.channel.send(`💀 Deleted ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
         }
 
-        // ================== 👑 RANK (ENGLISH DESIGN) ==================
-        if (command === "!rank") {
+        // ================== 👑 RANK ==================
+
+        if (command === "rank") {
 
             if (!mentionedUser) return message.reply("❌ Mention a user");
 
