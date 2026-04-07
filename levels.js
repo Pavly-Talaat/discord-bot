@@ -1,5 +1,6 @@
 const { getDB } = require('./database');
-const { EmbedBuilder } = require("discord.js");
+const { AttachmentBuilder } = require("discord.js");
+const { createLevelCard, createLeaderboardCard } = require('./canvas-design');
 
 // 🔥 نظام XP
 async function handleXP(message) {
@@ -33,19 +34,6 @@ async function handleXP(message) {
     );
 }
 
-// 🔥 XP Bar
-function createXPBar(xp, neededXP) {
-    const percentage = xp / neededXP;
-    const totalBars = 10;
-    const filledBars = Math.round(percentage * totalBars);
-    const emptyBars = totalBars - filledBars;
-
-    const bar = "█".repeat(filledBars) + "░".repeat(emptyBars);
-    const percentText = Math.round(percentage * 100);
-
-    return `${bar} ${percentText}%`;
-}
-
 // 👑 حساب الرانك
 async function getRank(users, userId) {
     const allUsers = await users.find().sort({ level: -1, xp: -1 }).toArray();
@@ -55,7 +43,7 @@ async function getRank(users, userId) {
     return index === -1 ? "?" : index + 1;
 }
 
-// 📊 عرض الليفل
+// 📊 عرض الليفل (بصورة احترافية)
 async function getLevel(message) {
     const db = getDB();
     if (!db) return;
@@ -75,38 +63,78 @@ async function getLevel(message) {
 
     const name = message.member?.displayName || message.author.username;
 
-    const xpBar = createXPBar(xp, neededXP);
-
     // 👑 الرانك
     const rank = await getRank(users, userId);
 
-    const embed = new EmbedBuilder()
-        .setColor("#2b2d31")
-        .setAuthor({
-            name: `📊 إحصائيات ${name}`,
-            iconURL: message.author.displayAvatarURL()
-        })
-        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-        .addFields(
-            {
-                name: "⭐ المستوى",
-                value: `\`${level}\``,
-                inline: true
-            },
-            {
-                name: "👑 الرتبة",
-                value: `\`#${rank}\``,
-                inline: true
-            },
-            {
-                name: "✨ النقاط",
-                value: `\`${xp} / ${neededXP}\`\n${xpBar}`,
-                inline: false
-            }
-        )
-        .setFooter({ text: "Devil Bot 😈" });
+    try {
+        // إنشاء الصورة
+        const cardBuffer = await createLevelCard({
+            name: name,
+            level: level,
+            xp: xp,
+            neededXP: neededXP,
+            rank: rank,
+            avatarURL: message.author.displayAvatarURL({ extension: 'png', size: 512 })
+        });
 
-    message.reply({ embeds: [embed] });
+        // إرسال الصورة
+        const attachment = new AttachmentBuilder(cardBuffer, { name: 'level-card.png' });
+        message.reply({ files: [attachment] });
+    } catch (err) {
+        console.error('❌ خطأ في رسم الكارت:', err);
+        message.reply("❌ حدث خطأ في إنشاء كارت الليفل");
+    }
 }
 
-module.exports = { handleXP, getLevel };
+// 🏆 Top Players Board (صورة احترافية)
+async function getLeaderboard(message) {
+    const db = getDB();
+    if (!db) return;
+
+    const users = db.collection("users");
+
+    const topUsers = await users
+        .find()
+        .sort({ level: -1, xp: -1 })
+        .limit(5)
+        .toArray();
+
+    if (!topUsers.length) {
+        return message.reply("❌ مفيش بيانات لسه");
+    }
+
+    try {
+        // تحضير بيانات اللاعبين
+        const topUsersData = [];
+        
+        for (const user of topUsers) {
+            try {
+                const discordUser = await message.client.users.fetch(user.userId);
+                topUsersData.push({
+                    name: discordUser.username,
+                    level: user.level,
+                    xp: user.xp
+                });
+            } catch (err) {
+                // إذا لم نتمكن من جلب المستخدم، استخدم ID فقط
+                topUsersData.push({
+                    name: `User #${user.userId}`,
+                    level: user.level,
+                    xp: user.xp
+                });
+            }
+        }
+
+        // إنشاء الصورة
+        const boardBuffer = await createLeaderboardCard(topUsersData);
+
+        // إرسال الصورة
+        const attachment = new AttachmentBuilder(boardBuffer, { name: 'leaderboard.png' });
+        message.reply({ files: [attachment] });
+    } catch (err) {
+        console.error('❌ خطأ في رسم اللوحة:', err);
+        message.reply("❌ حدث خطأ في إنشاء لوحة الترتيب");
+    }
+}
+
+module.exports = { handleXP, getLevel, getLeaderboard };
