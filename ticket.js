@@ -34,11 +34,31 @@ async function getNextTicketNumber(db) {
     return data.value.value;
 }
 
-// 🎫 إرسال Panel (إجباري كل تشغيل)
+// 🎫 إرسال Panel (مرة واحدة فقط)
 async function sendPanel(client) {
     try {
+        const db = getDB();
+        if (!db) return;
+
+        const settings = db.collection("settings");
+
         const channel = await client.channels.fetch("1491908284813148272").catch(() => null);
         if (!channel) return console.log("❌ Channel not found");
+
+        // 👑 نجيب الرسالة القديمة
+        const data = await settings.findOne({ name: "ticketPanel" });
+
+        if (data) {
+            try {
+                const msg = await channel.messages.fetch(data.messageId);
+                if (msg) {
+                    console.log("✅ Panel already exists");
+                    return;
+                }
+            } catch {
+                console.log("⚠️ Old panel deleted → creating new");
+            }
+        }
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -50,14 +70,22 @@ async function sendPanel(client) {
         const embed = new EmbedBuilder()
             .setColor("#2b2d31")
             .setTitle("🎫 نظام الدعم الفني")
-            .setDescription("اضغط على الزر لإنشاء تذكرة والتواصل مع الإدارة.\n\n⚠️ الحد: 2 تيكت يوميًا لكل عضو.");
+            .setDescription(
+                "اضغط على الزر لإنشاء تذكرة والتواصل مع الإدارة.\n\n⚠️ الحد: 2 تيكت يوميًا لكل عضو."
+            );
 
-        await channel.send({
+        const sent = await channel.send({
             embeds: [embed],
             components: [row]
         });
 
-        console.log("✅ Ticket Panel Sent");
+        await settings.updateOne(
+            { name: "ticketPanel" },
+            { $set: { messageId: sent.id } },
+            { upsert: true }
+        );
+
+        console.log("🔥 Panel Sent");
 
     } catch (err) {
         console.error("❌ Panel Error:", err);
@@ -137,14 +165,15 @@ function handleTicketInteraction(client, OWNER_ID) {
                     ]
                 });
 
-                // 👑 رسالة داخل التيكت
                 const embed = new EmbedBuilder()
                     .setColor("#5865F2")
                     .setTitle("🎫 تم فتح التذكرة")
-                    .setDescription(`مرحبًا ${user} 👋\n\nيرجى شرح مشكلتك بالتفصيل.\nسيتم الرد عليك قريبًا من الإدارة.`)
+                    .setDescription(
+                        `مرحبًا ${user} 👋\n\nاكتب مشكلتك وسيتم الرد عليك قريبًا.`
+                    )
                     .setFooter({ text: `Ticket #${ticketNumber}` });
 
-                // 👑 زر الإغلاق (للأونر فقط)
+                // 👑 زر إغلاق للأونر فقط
                 let components = [];
 
                 if (user.id === OWNER_ID) {
@@ -164,9 +193,8 @@ function handleTicketInteraction(client, OWNER_ID) {
                     components: components
                 });
 
-                // 📩 DM
                 try {
-                    await user.send(`🎫 تم إنشاء تذكرتك:\n${channel}`);
+                    await user.send(`🎫 تم إنشاء التذكرة: ${channel}`);
                 } catch {}
 
                 await interaction.editReply({
@@ -189,7 +217,7 @@ function handleTicketInteraction(client, OWNER_ID) {
                     });
                 }
 
-                await interaction.reply("🔒 جاري إغلاق التذكرة...");
+                await interaction.reply("🔒 جاري الإغلاق...");
 
                 setTimeout(() => {
                     interaction.channel.delete().catch(() => {});
