@@ -11,8 +11,9 @@ const { getDB } = require("./database");
 
 const tickets = new Map();
 let ticketHandlerLoaded = false;
+const PANEL_CHANNEL_ID = "1491908284813148272"; // الروم المراد مراقبتها
 
-// 🔢 عداد التيكت
+// 🔢 عداد التيكت - جلب الرقم التالي من قاعدة البيانات
 async function getNextTicketNumber(db) {
     const settings = db.collection("settings");
 
@@ -22,27 +23,32 @@ async function getNextTicketNumber(db) {
         { upsert: true, returnDocument: "after" }
     );
 
-    return data.value.value;
+    // التعامل مع هيكل البيانات المختلف في نسخ MongoDB
+    return data.value ? data.value.value : data.value; 
 }
 
-// 🎫 إرسال Panel مرة واحدة فقط
+// 🎫 إرسال Panel مع التحقق من وجود رسالة سابقة (الميزة المطلوبة)
 async function sendPanel(client) {
     try {
         const db = getDB();
         if (!db) return;
 
         const settings = db.collection("settings");
+        const channel = await client.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
+        
+        if (!channel) {
+            console.error("❌ لم يتم العثور على روم الدعم!");
+            return;
+        }
 
-        const channel = await client.channels.fetch("1491908284813148272").catch(() => null);
-        if (!channel) return;
+        // 🔍 فحص آخر 50 رسالة في الروم للتأكد من عدم وجود البانل
+        const messages = await channel.messages.fetch({ limit: 50 });
+        const existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "الدعم 🎫");
 
-        const data = await settings.findOne({ name: "ticketPanel" });
-
-        if (data) {
-            try {
-                const msg = await channel.messages.fetch(data.messageId);
-                if (msg) return;
-            } catch {}
+        // إذا وجدت الرسالة بالفعل، لن يرسلها مرة أخرى
+        if (existingPanel) {
+            console.log("✅ لوحة الدعم موجودة بالفعل في الروم، لن يتم إعادة الإرسال.");
+            return;
         }
 
         const row = new ActionRowBuilder().addComponents(
@@ -54,48 +60,47 @@ async function sendPanel(client) {
 
         const embed = new EmbedBuilder()
             .setTitle("الدعم 🎫")
-            .setDescription("لإنشاء تيكت اضغط هنا للتحدث مع الدعم 📩");
+            .setDescription("لفتح تذكرة جديدة والتواصل مع الإدارة، اضغط على الزر أدناه 📩")
+            .setColor("#2b2d31")
+            .setFooter({ text: "نظام التذاكر المتطور 😈" });
 
         const sent = await channel.send({
             embeds: [embed],
             components: [row]
         });
 
+        // تحديث قاعدة البيانات بمعرف الرسالة الجديدة
         await settings.updateOne(
             { name: "ticketPanel" },
-            { $set: { messageId: sent.id } },
+            { $set: { messageId: sent.id, channelId: PANEL_CHANNEL_ID } },
             { upsert: true }
         );
 
+        console.log("✅ تم إرسال لوحة الدعم بنجاح.");
+
     } catch (err) {
-        console.error("Panel Error:", err);
+        console.error("❌ Panel Error:", err);
     }
 }
 
-// 🎮 التعامل مع الأزرار
+// 🎮 التعامل مع التفاعلات (فتح وإغلاق التذاكر)
 function handleTicketInteraction(client, OWNER_ID) {
-
     if (ticketHandlerLoaded) return;
     ticketHandlerLoaded = true;
 
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
 
-        const guild = interaction.guild;
-        const user = interaction.user;
+        const { guild, user, customId } = interaction;
 
-        // ================= CREATE =================
-        if (interaction.customId === "create_ticket") {
-
+        // ================= إنشاء تذكرة =================
+        if (customId === "create_ticket") {
             try {
                 await interaction.deferReply({ ephemeral: true });
 
+                // منع السبام (تذكرتين لكل مستخدم يومياً)
                 const today = new Date().toDateString();
-
-                if (!tickets.has(user.id)) {
-                    tickets.set(user.id, { count: 0, date: today });
-                }
-
+                if (!tickets.has(user.id)) tickets.set(user.id, { count: 0, date: today });
                 const userData = tickets.get(user.id);
 
                 if (userData.date !== today) {
@@ -103,110 +108,73 @@ function handleTicketInteraction(client, OWNER_ID) {
                     userData.date = today;
                 }
 
-                if (userData.count >= 2) {
-                    return interaction.editReply({
-                        content: "❌ الحد الأقصى 2 تيكت في اليوم"
-                    });
+                if (userData.count >= 2 && user.id !== OWNER_ID) {
+                    return interaction.editReply({ content: "❌ عذراً، لقد وصلت للحد الأقصى (2 تذكرة يومياً)." });
                 }
-
-                userData.count++;
 
                 const db = getDB();
-                if (!db) {
-                    return interaction.editReply({
-                        content: "❌ خطأ في الداتا"
-                    });
-                }
-
                 const ticketNumber = await getNextTicketNumber(db);
 
+                // إنشاء الروم وتحديد الصلاحيات
                 const channel = await guild.channels.create({
                     name: `ticket-${ticketNumber}`,
                     type: ChannelType.GuildText,
                     permissionOverwrites: [
-                        {
-                            id: guild.id,
-                            deny: [PermissionsBitField.Flags.ViewChannel]
-                        },
-                        {
-                            id: user.id,
-                            allow: [
-                                PermissionsBitField.Flags.ViewChannel,
-                                PermissionsBitField.Flags.SendMessages
-                            ]
-                        },
-                        {
-                            id: OWNER_ID,
-                            allow: [
-                                PermissionsBitField.Flags.ViewChannel,
-                                PermissionsBitField.Flags.SendMessages
-                            ]
-                        }
+                        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.AttachFiles] },
+                        { id: OWNER_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
                     ]
                 });
 
-                // 🔥 هنا التعديل الحقيقي
-                let components = [];
+                userData.count++;
 
-                if (user.id === OWNER_ID) {
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId("close_ticket")
-                            .setLabel("❌ Close")
-                            .setStyle(ButtonStyle.Danger)
-                    );
+                const closeRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId("close_ticket")
+                        .setLabel("🔒 إغلاق التذكرة")
+                        .setStyle(ButtonStyle.Danger)
+                );
 
-                    components.push(row);
-                }
+                const welcomeEmbed = new EmbedBuilder()
+                    .setTitle(`تذكرة رقم #${ticketNumber}`)
+                    .setDescription(`أهلاً بك ${user}، يرجى كتابة استفسارك هنا وسيقوم الدعم بالرد عليك قريباً.`)
+                    .setColor("#00ff00")
+                    .setTimestamp();
 
                 await channel.send({
-                    content: `🎫 ${user} تم فتح التذكرة`,
-                    components: components
+                    content: `${user} | <@${OWNER_ID}>`,
+                    embeds: [welcomeEmbed],
+                    components: [closeRow]
                 });
 
-                // 📩 DM
+                // إرسال رسالة في الخاص للمستخدم
                 try {
-                    await user.send(`🎫 تم إنشاء التذكرة:
+                    await user.send(`🎫 تم إنشاء تذكرتك بنجاح: ${channel}`);
+                } catch (e) {}
 
-📌 ${channel.name}
-🔗 https://discord.com/channels/${guild.id}/${channel.id}`);
-                } catch {}
-
-                await interaction.editReply({
-                    content: `✅ تم إنشاء التذكرة: ${channel}`
-                });
+                await interaction.editReply({ content: `✅ تم فتح التذكرة بنجاح: ${channel}` });
 
             } catch (err) {
-                console.error("Ticket Error:", err);
-
-                if (!interaction.replied) {
-                    interaction.reply({
-                        content: "❌ حصل خطأ",
-                        ephemeral: true
-                    }).catch(() => {});
-                }
+                console.error("Ticket Creation Error:", err);
+                await interaction.editReply({ content: "❌ حدث خطأ أثناء محاولة فتح التذكرة." });
             }
         }
 
-        // ================= CLOSE =================
-        if (interaction.customId === "close_ticket") {
-
+        // ================= إغلاق التذكرة =================
+        if (customId === "close_ticket") {
             try {
                 if (interaction.user.id !== OWNER_ID) {
-                    return interaction.reply({
-                        content: "❌ للأونر فقط",
-                        ephemeral: true
-                    });
+                    return interaction.reply({ content: "❌ هذا الإجراء متاح للأونر فقط.", ephemeral: true });
                 }
 
-                await interaction.channel.send("🔒 جاري إغلاق التذكرة...");
-
+                await interaction.reply("🔒 سيتم إغلاق التذكرة وحذف القناة خلال 5 ثوانٍ...");
+                
                 setTimeout(() => {
                     interaction.channel.delete().catch(() => {});
-                }, 2000);
+                }, 5000);
 
             } catch (err) {
-                console.error("Close Error:", err);
+                console.error("Close Ticket Error:", err);
             }
         }
     });
