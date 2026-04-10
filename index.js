@@ -11,16 +11,10 @@ const { handleTicketInteraction, sendPanel } = require("./ticket");
 const express = require('express');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// 👑 PORT من Railway فقط
-const PORT = process.env.PORT;
+app.get('/', (req, res) => res.send('Bot is running'));
 
-// 🧠 endpoint علشان يفضل صاحي
-app.get('/', (req, res) => {
-    res.send('🔥 Bot is alive 😈');
-});
-
-// 🔥 تشغيل السيرفر
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Server running on port ${PORT}`);
 });
@@ -39,7 +33,6 @@ const client = new Client({
 const TOKEN = process.env.TOKEN;
 const OWNER_ID = "880803449632079883";
 
-// 👑 لما البوت يشتغل
 client.once('ready', async () => {
     console.log(`🔥 Logged in as ${client.user.tag}`);
 
@@ -52,7 +45,6 @@ client.once('ready', async () => {
     }
 });
 
-// 💀 أوامر الشات
 client.on('messageCreate', async (message) => {
     try {
         if (!message || message.author.bot) return;
@@ -73,13 +65,14 @@ client.on('messageCreate', async (message) => {
         // ================== 👤 USER ==================
 
         if (command === "!ping") {
-            return message.reply("🏓 Pong! Alive 😈");
+            return message.reply("🏓 Pong! New");
         }
 
         if (command === "!level") {
             return await getLevel(message);
         }
 
+        // 🔥🔥🔥 top (تم التعديل هنا فقط)
         if (command === "!top") {
 
             const topUsers = await users.find().sort({ level: -1, xp: -1 }).limit(5).toArray();
@@ -96,6 +89,7 @@ client.on('messageCreate', async (message) => {
                 desc += `${medal} #${i + 1} - <@${u.userId}> (Level ${u.level})\n`;
             }
 
+            // 👑 Top 1
             let topUser = null;
             let avatar = null;
             let title = "🏆 Best 5 Players";
@@ -103,8 +97,13 @@ client.on('messageCreate', async (message) => {
             try {
                 topUser = await client.users.fetch(topUsers[0].userId);
                 avatar = topUser.displayAvatarURL({ dynamic: true, size: 1024 });
+
+                // 🔥 الاسم الكبير فوق
                 title = `👑 ${topUser.username} | Top Player`;
-            } catch {}
+
+            } catch (err) {
+                console.log("❌ Error fetching top user");
+            }
 
             const embed = new EmbedBuilder()
                 .setColor("#FFD700")
@@ -112,7 +111,10 @@ client.on('messageCreate', async (message) => {
                 .setDescription(desc)
                 .setFooter({ text: "Devil Bot 😈" });
 
+            // 🖼️ صورة جنب
             if (avatar) embed.setThumbnail(avatar);
+
+            // 🖼️ صورة كبيرة تحت
             if (avatar) embed.setImage(avatar);
 
             return message.reply({ embeds: [embed] });
@@ -220,10 +222,54 @@ client.on('messageCreate', async (message) => {
             return message.channel.send(`💀 Deleted ${amount}`);
         }
 
+        // ================== 👑 مستوي ==================
+        if (command === "!مستوي") {
+
+            if (!mentionedUser) return message.reply("❌ منشن الشخص");
+
+            const userId = mentionedUser.id;
+
+            await users.updateOne(
+                { userId },
+                { $setOnInsert: { userId, xp: 0, level: 1 } },
+                { upsert: true }
+            );
+
+            const user = await users.findOne({ userId });
+
+            const level = user.level;
+            const xp = user.xp;
+            const neededXP = level * 100;
+
+            const percentage = xp / neededXP;
+            const bars = Math.round(percentage * 10);
+            const xpBar = "█".repeat(bars) + "░".repeat(10 - bars);
+
+            const rank = await users.countDocuments({
+                $or: [
+                    { level: { $gt: level } },
+                    { level: level, xp: { $gt: xp } }
+                ]
+            }) + 1;
+
+            const embed = new EmbedBuilder()
+                .setColor("#2b2d31")
+                .setAuthor({
+                    name: `📊 مستوى ${mentionedUser.username}`,
+                    iconURL: mentionedUser.displayAvatarURL()
+                })
+                .addFields(
+                    { name: "⭐ المستوى", value: `\`${level}\``, inline: true },
+                    { name: "👑 الرتبة", value: `\`#${rank}\``, inline: true },
+                    { name: "✨ النقاط", value: `\`${xp} / ${neededXP}\`\n${xpBar}` }
+                );
+
+            return message.reply({ embeds: [embed] });
+        }
+
     } catch (err) {
         console.error("❌ Message Error:", err);
     }
 });
 
-// 🔥 تشغيل البوت
 client.login(TOKEN);
