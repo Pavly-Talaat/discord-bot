@@ -124,7 +124,7 @@ client.on('messageCreate', async (message) => {
 
         // ================== 👑 OWNER COMMANDS ==================
 
-        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel", "!alllevels", "!clear", "!مستوي"];
+        const ownerOnly = ["!addxp", "!rexp", "!addlevel", "!relevel", "!alllevels", "!clear", "!rank"];
         if (ownerOnly.includes(command) && message.author.id !== OWNER_ID) {
             return message.reply("❌ الأمر للأونر فقط 👑");
         }
@@ -189,7 +189,7 @@ client.on('messageCreate', async (message) => {
             return message.channel.send(`💀 Deleted ${amount}`).then(m => setTimeout(() => m.delete(), 3000));
         }
 
-        if (command === "!مستوي") {
+        if (command === "!rank") {
             if (!mentionedUser) return message.reply("❌ منشن الشخص");
             const userId = mentionedUser.id;
 
