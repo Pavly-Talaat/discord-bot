@@ -6,13 +6,11 @@ const {
     PermissionsBitField,
     EmbedBuilder
 } = require("discord.js");
-
 const { getDB } = require("./database");
 
 let ticketHandlerLoaded = false;
 const PANEL_CHANNEL_ID = "1491908284813148272"; 
 
-// 🔢 عداد التيكت - معالجة خطأ MongoDB المشهور في الاستضافات
 async function getNextTicketNumber(db) {
     try {
         const settings = db.collection("settings");
@@ -21,58 +19,45 @@ async function getNextTicketNumber(db) {
             { $inc: { value: 1 } },
             { upsert: true, returnDocument: "after" }
         );
-        // التعامل مع اختلاف إصدارات الـ Driver لـ MongoDB
         const val = result.value ? (result.value.value || result.value) : result.value;
         return val || Math.floor(Math.random() * 1000);
     } catch (err) {
-        console.error("❌ Error in getNextTicketNumber:", err);
-        return "N/A";
+        return "00";
     }
 }
 
-// 🎫 إرسال الـ Panel مع التحقق من وجود رسالة سابقة
 async function sendPanel(client) {
     try {
         const db = getDB();
-        if (!db) return console.log("⏳ waiting for DB...");
-
         const channel = await client.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
-        if (!channel) return console.error("❌ لا يمكن العثور على روم البانل!");
+        if (!channel) return;
 
-        // 🔍 فحص آخر 50 رسالة للتأكد من عدم التكرار
-        const messages = await channel.messages.fetch({ limit: 50 });
-        const isExist = messages.some(m => 
-            m.author.id === client.user.id && 
-            m.embeds.length > 0 && 
-            m.embeds[0].title === "الدعم 🎫"
-        );
+        // 🔍 فحص الروم قبل الإرسال لمنع التكرار
+        const messages = await channel.messages.fetch({ limit: 20 });
+        const exists = messages.some(m => m.author.id === client.user.id && m.embeds[0]?.title === "مركز المساعدة 🎫");
 
-        if (isExist) {
-            console.log("✅ الرسالة موجودة بالفعل في الروم، لن يتم التكرار.");
+        if (exists) {
+            console.log("ℹ️ لوحة التذاكر موجودة بالفعل، لن يتم إعادة الإرسال.");
             return;
         }
 
+        const embed = new EmbedBuilder()
+            .setTitle("مركز المساعدة 🎫")
+            .setDescription("للتواصل مع الإدارة أو الإبلاغ عن مشكلة، اضغط على الزر أدناه لفتح تذكرة خاصة.")
+            .addFields({ name: "⚠️ ملاحظة", value: "الرجاء عدم فتح تذكرة بدون سبب واضح." })
+            .setColor("#2b2d31")
+            .setTimestamp();
+
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId("create_ticket")
-                .setLabel("📩 Create Ticket")
-                .setStyle(ButtonStyle.Primary)
+            new ButtonBuilder().setCustomId("create_ticket").setLabel("📩 افتح تذكرة").setStyle(ButtonStyle.Primary)
         );
 
-        const embed = new EmbedBuilder()
-            .setTitle("الدعم 🎫")
-            .setDescription("لفتح تذكرة جديدة والتواصل مع الإدارة، اضغط على الزر أدناه 📩")
-            .setColor("#2b2d31")
-            .setFooter({ text: "نظام التذاكر المتطور" });
-
         await channel.send({ embeds: [embed], components: [row] });
-        console.log("🚀 تم إرسال لوحة الدعم بنجاح.");
     } catch (err) {
-        console.error("❌ Error in sendPanel:", err);
+        console.error("❌ SendPanel Error:", err);
     }
 }
 
-// 🎮 معالج التفاعلات (فتح وإغلاق)
 function handleTicketInteraction(client, OWNER_ID) {
     if (ticketHandlerLoaded) return;
     ticketHandlerLoaded = true;
@@ -80,50 +65,38 @@ function handleTicketInteraction(client, OWNER_ID) {
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
 
-        const { guild, user, customId, channel } = interaction;
+        if (interaction.customId === "create_ticket") {
+            await interaction.deferReply({ ephemeral: true });
+            const db = getDB();
+            const num = await getNextTicketNumber(db);
 
-        if (customId === "create_ticket") {
-            try {
-                // منع التعليق (Interaction Failed)
-                await interaction.deferReply({ ephemeral: true });
+            const ticketChannel = await interaction.guild.channels.create({
+                name: `ticket-${num}`,
+                type: ChannelType.GuildText,
+                permissionOverwrites: [
+                    { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                    { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.AttachFiles] },
+                    { id: OWNER_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+                ]
+            });
 
-                const db = getDB();
-                const ticketNumber = await getNextTicketNumber(db);
+            const closeBtn = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("close_ticket").setLabel("🔒 إغلاق").setStyle(ButtonStyle.Danger)
+            );
 
-                const ticketChannel = await guild.channels.create({
-                    name: `ticket-${ticketNumber}`,
-                    type: ChannelType.GuildText,
-                    permissionOverwrites: [
-                        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.AttachFiles] },
-                        { id: OWNER_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-                    ]
-                });
+            await ticketChannel.send({
+                content: `مرحباً ${interaction.user} | <@${OWNER_ID}>`,
+                embeds: [new EmbedBuilder().setTitle("تذكرة دعم جديدة").setDescription("اكتب استفسارك وسوف يتم الرد عليك قريباً.").setColor("#5865F2")],
+                components: [closeBtn]
+            });
 
-                const closeRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId("close_ticket")
-                        .setLabel("🔒 إغلاق")
-                        .setStyle(ButtonStyle.Danger)
-                );
-
-                await ticketChannel.send({
-                    content: `أهلاً بك ${user} | <@${OWNER_ID}>`,
-                    embeds: [new EmbedBuilder().setDescription("اكتب استفسارك هنا وسيتم الرد عليك.").setColor("#5865F2")],
-                    components: [closeRow]
-                });
-
-                await interaction.editReply({ content: `✅ تم فتح التذكرة: ${ticketChannel}` });
-            } catch (err) {
-                console.error("❌ Ticket Error:", err);
-            }
+            await interaction.editReply(`✅ تم فتح تذكرتك: ${ticketChannel}`);
         }
 
-        if (customId === "close_ticket") {
-            if (user.id !== OWNER_ID) return interaction.reply({ content: "❌ للأونر فقط", ephemeral: true });
-            
-            await interaction.reply("🔒 سيتم حذف التذكرة خلال 3 ثوانٍ...");
-            setTimeout(() => channel.delete().catch(() => {}), 3000);
+        if (interaction.customId === "close_ticket") {
+            if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: "❌ للأونر فقط", ephemeral: true });
+            await interaction.reply("🔒 سيتم حذف الغرفة خلال 5 ثوانٍ...");
+            setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
         }
     });
 }
