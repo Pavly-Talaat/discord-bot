@@ -12,7 +12,7 @@ const { getDB } = require("./database");
 const tickets = new Map();
 let ticketHandlerLoaded = false;
 
-// 🔥 عداد التيكت (مصلّح 100%)
+// 🔢 عداد التيكت
 async function getNextTicketNumber(db) {
     const settings = db.collection("settings");
 
@@ -21,16 +21,6 @@ async function getNextTicketNumber(db) {
         { $inc: { value: 1 } },
         { upsert: true, returnDocument: "after" }
     );
-
-    // 💀 حماية من undefined
-    if (!data.value || typeof data.value.value !== "number") {
-        await settings.updateOne(
-            { name: "ticketCounter" },
-            { $set: { value: 1 } },
-            { upsert: true }
-        );
-        return 1;
-    }
 
     return data.value.value;
 }
@@ -131,7 +121,7 @@ function handleTicketInteraction(client, OWNER_ID) {
                 const ticketNumber = await getNextTicketNumber(db);
 
                 const channel = await guild.channels.create({
-                    name: `ticket-${ticketNumber}`, // 👑 عداد لا نهائي
+                    name: `ticket-${ticketNumber}`,
                     type: ChannelType.GuildText,
                     permissionOverwrites: [
                         {
@@ -155,7 +145,7 @@ function handleTicketInteraction(client, OWNER_ID) {
                     ]
                 });
 
-                // 👑 زر الإغلاق يظهر للأونر فقط
+                // 🔥 هنا التعديل الحقيقي
                 let components = [];
 
                 if (user.id === OWNER_ID) {
