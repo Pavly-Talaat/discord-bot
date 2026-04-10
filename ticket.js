@@ -9,45 +9,46 @@ const {
 
 const { getDB } = require("./database");
 
-const tickets = new Map();
 let ticketHandlerLoaded = false;
-const PANEL_CHANNEL_ID = "1491908284813148272"; // الروم المراد مراقبتها
+const PANEL_CHANNEL_ID = "1491908284813148272"; 
 
-// 🔢 عداد التيكت - جلب الرقم التالي من قاعدة البيانات
+// 🔢 عداد التيكت - معالجة خطأ MongoDB المشهور في الاستضافات
 async function getNextTicketNumber(db) {
-    const settings = db.collection("settings");
-
-    const data = await settings.findOneAndUpdate(
-        { name: "ticketCounter" },
-        { $inc: { value: 1 } },
-        { upsert: true, returnDocument: "after" }
-    );
-
-    // التعامل مع هيكل البيانات المختلف في نسخ MongoDB
-    return data.value ? data.value.value : data.value; 
+    try {
+        const settings = db.collection("settings");
+        const result = await settings.findOneAndUpdate(
+            { name: "ticketCounter" },
+            { $inc: { value: 1 } },
+            { upsert: true, returnDocument: "after" }
+        );
+        // التعامل مع اختلاف إصدارات الـ Driver لـ MongoDB
+        const val = result.value ? (result.value.value || result.value) : result.value;
+        return val || Math.floor(Math.random() * 1000);
+    } catch (err) {
+        console.error("❌ Error in getNextTicketNumber:", err);
+        return "N/A";
+    }
 }
 
-// 🎫 إرسال Panel مع التحقق من وجود رسالة سابقة (الميزة المطلوبة)
+// 🎫 إرسال الـ Panel مع التحقق من وجود رسالة سابقة
 async function sendPanel(client) {
     try {
         const db = getDB();
-        if (!db) return;
+        if (!db) return console.log("⏳ waiting for DB...");
 
-        const settings = db.collection("settings");
         const channel = await client.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
-        
-        if (!channel) {
-            console.error("❌ لم يتم العثور على روم الدعم!");
-            return;
-        }
+        if (!channel) return console.error("❌ لا يمكن العثور على روم البانل!");
 
-        // 🔍 فحص آخر 50 رسالة في الروم للتأكد من عدم وجود البانل
+        // 🔍 فحص آخر 50 رسالة للتأكد من عدم التكرار
         const messages = await channel.messages.fetch({ limit: 50 });
-        const existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "الدعم 🎫");
+        const isExist = messages.some(m => 
+            m.author.id === client.user.id && 
+            m.embeds.length > 0 && 
+            m.embeds[0].title === "الدعم 🎫"
+        );
 
-        // إذا وجدت الرسالة بالفعل، لن يرسلها مرة أخرى
-        if (existingPanel) {
-            console.log("✅ لوحة الدعم موجودة بالفعل في الروم، لن يتم إعادة الإرسال.");
+        if (isExist) {
+            console.log("✅ الرسالة موجودة بالفعل في الروم، لن يتم التكرار.");
             return;
         }
 
@@ -62,28 +63,16 @@ async function sendPanel(client) {
             .setTitle("الدعم 🎫")
             .setDescription("لفتح تذكرة جديدة والتواصل مع الإدارة، اضغط على الزر أدناه 📩")
             .setColor("#2b2d31")
-            .setFooter({ text: "نظام التذاكر المتطور 😈" });
+            .setFooter({ text: "نظام التذاكر المتطور" });
 
-        const sent = await channel.send({
-            embeds: [embed],
-            components: [row]
-        });
-
-        // تحديث قاعدة البيانات بمعرف الرسالة الجديدة
-        await settings.updateOne(
-            { name: "ticketPanel" },
-            { $set: { messageId: sent.id, channelId: PANEL_CHANNEL_ID } },
-            { upsert: true }
-        );
-
-        console.log("✅ تم إرسال لوحة الدعم بنجاح.");
-
+        await channel.send({ embeds: [embed], components: [row] });
+        console.log("🚀 تم إرسال لوحة الدعم بنجاح.");
     } catch (err) {
-        console.error("❌ Panel Error:", err);
+        console.error("❌ Error in sendPanel:", err);
     }
 }
 
-// 🎮 التعامل مع التفاعلات (فتح وإغلاق التذاكر)
+// 🎮 معالج التفاعلات (فتح وإغلاق)
 function handleTicketInteraction(client, OWNER_ID) {
     if (ticketHandlerLoaded) return;
     ticketHandlerLoaded = true;
@@ -91,32 +80,17 @@ function handleTicketInteraction(client, OWNER_ID) {
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
 
-        const { guild, user, customId } = interaction;
+        const { guild, user, customId, channel } = interaction;
 
-        // ================= إنشاء تذكرة =================
         if (customId === "create_ticket") {
             try {
+                // منع التعليق (Interaction Failed)
                 await interaction.deferReply({ ephemeral: true });
-
-                // منع السبام (تذكرتين لكل مستخدم يومياً)
-                const today = new Date().toDateString();
-                if (!tickets.has(user.id)) tickets.set(user.id, { count: 0, date: today });
-                const userData = tickets.get(user.id);
-
-                if (userData.date !== today) {
-                    userData.count = 0;
-                    userData.date = today;
-                }
-
-                if (userData.count >= 2 && user.id !== OWNER_ID) {
-                    return interaction.editReply({ content: "❌ عذراً، لقد وصلت للحد الأقصى (2 تذكرة يومياً)." });
-                }
 
                 const db = getDB();
                 const ticketNumber = await getNextTicketNumber(db);
 
-                // إنشاء الروم وتحديد الصلاحيات
-                const channel = await guild.channels.create({
+                const ticketChannel = await guild.channels.create({
                     name: `ticket-${ticketNumber}`,
                     type: ChannelType.GuildText,
                     permissionOverwrites: [
@@ -126,61 +100,32 @@ function handleTicketInteraction(client, OWNER_ID) {
                     ]
                 });
 
-                userData.count++;
-
                 const closeRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId("close_ticket")
-                        .setLabel("🔒 إغلاق التذكرة")
+                        .setLabel("🔒 إغلاق")
                         .setStyle(ButtonStyle.Danger)
                 );
 
-                const welcomeEmbed = new EmbedBuilder()
-                    .setTitle(`تذكرة رقم #${ticketNumber}`)
-                    .setDescription(`أهلاً بك ${user}، يرجى كتابة استفسارك هنا وسيقوم الدعم بالرد عليك قريباً.`)
-                    .setColor("#00ff00")
-                    .setTimestamp();
-
-                await channel.send({
-                    content: `${user} | <@${OWNER_ID}>`,
-                    embeds: [welcomeEmbed],
+                await ticketChannel.send({
+                    content: `أهلاً بك ${user} | <@${OWNER_ID}>`,
+                    embeds: [new EmbedBuilder().setDescription("اكتب استفسارك هنا وسيتم الرد عليك.").setColor("#5865F2")],
                     components: [closeRow]
                 });
 
-                // إرسال رسالة في الخاص للمستخدم
-                try {
-                    await user.send(`🎫 تم إنشاء تذكرتك بنجاح: ${channel}`);
-                } catch (e) {}
-
-                await interaction.editReply({ content: `✅ تم فتح التذكرة بنجاح: ${channel}` });
-
+                await interaction.editReply({ content: `✅ تم فتح التذكرة: ${ticketChannel}` });
             } catch (err) {
-                console.error("Ticket Creation Error:", err);
-                await interaction.editReply({ content: "❌ حدث خطأ أثناء محاولة فتح التذكرة." });
+                console.error("❌ Ticket Error:", err);
             }
         }
 
-        // ================= إغلاق التذكرة =================
         if (customId === "close_ticket") {
-            try {
-                if (interaction.user.id !== OWNER_ID) {
-                    return interaction.reply({ content: "❌ هذا الإجراء متاح للأونر فقط.", ephemeral: true });
-                }
-
-                await interaction.reply("🔒 سيتم إغلاق التذكرة وحذف القناة خلال 5 ثوانٍ...");
-                
-                setTimeout(() => {
-                    interaction.channel.delete().catch(() => {});
-                }, 5000);
-
-            } catch (err) {
-                console.error("Close Ticket Error:", err);
-            }
+            if (user.id !== OWNER_ID) return interaction.reply({ content: "❌ للأونر فقط", ephemeral: true });
+            
+            await interaction.reply("🔒 سيتم حذف التذكرة خلال 3 ثوانٍ...");
+            setTimeout(() => channel.delete().catch(() => {}), 3000);
         }
     });
 }
 
-module.exports = {
-    handleTicketInteraction,
-    sendPanel
-};
+module.exports = { handleTicketInteraction, sendPanel };
