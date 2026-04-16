@@ -5,6 +5,7 @@ const { handleXP, getLevel } = require('./levels');
 const { getDB, connectDB } = require('./database');
 const { handleTicketInteraction, sendPanel } = require("./ticket");
 const express = require('express');
+const fetch = require("node-fetch");
 
 // --- إعداد خادم الاستضافة لضمان العمل المستمر ---
 const app = express();
@@ -81,6 +82,143 @@ client.on('messageCreate', async (message) => {
                 .setFooter({ text: "NEON PROTOCOL: RANKING_MODULE" });
             
             return message.reply({ embeds: [topEmbed] });
+        }
+
+        // ================== [ 🤖 AI SYSTEM ] ==================
+
+        // الأمر الجديد !ai
+        if (command === "!ai") {
+            const question = args.slice(1).join(" ");
+            
+            if (!question) {
+                return message.reply("❌ **AI_SYSTEM:** اسأل حاجة! مثال: `!ai ايه رأيك في البرمجة؟`");
+            }
+
+            await message.channel.sendTyping();
+
+            const userData = await users.findOne({ userId: message.author.id });
+            const userName = userData?.memory?.name || "يا باشا";
+
+            try {
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "openai/gpt-3.5-turbo",
+                        temperature: 0.9,
+                        messages: [
+                            {
+                                role: "system",
+                                content: `انت شاب مصري بتتكلم طبيعي جدًا زي صحابك. اسم الشخص: ${userName}. لو تعرف اسمه استخدمه. اتكلم بالمصري بس. خليك روش وطبيعي ومتستخدمش حروف إنجليزية.`
+                            },
+                            {
+                                role: "user",
+                                content: question
+                            }
+                        ]
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!data.choices) {
+                    console.error("❌ OPENROUTER ERROR:", data);
+                    return message.reply("❌ **AI_ERROR:** عذرًا، حدث خطأ في الاتصال بالذكاء الاصطناعي.");
+                }
+
+                let reply = data.choices[0].message.content;
+                reply = reply.replace(/[A-Za-z]/g, ""); // إزالة الحروف الإنجليزية
+
+                if (reply.length > 2000) {
+                    reply = reply.substring(0, 1997) + "...";
+                }
+
+                return message.reply(`🤖 **AI | ${message.author.username}:**\n${reply}`);
+
+            } catch (err) {
+                console.error("❌ AI_SYSTEM_ERROR:", err);
+                return message.reply("❌ **AI_ERROR:** حدث خطأ في معالجة طلبك، حاول مرة أخرى.");
+            }
+        }
+
+        // نظام الـ Mention (منشن البوت)
+        const isMention = message.mentions.has(client.user);
+
+        let isReplyToBot = false;
+        if (message.reference) {
+            try {
+                const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                if (repliedMsg.author.id === client.user.id) {
+                    isReplyToBot = true;
+                }
+            } catch {}
+        }
+
+        if (isMention || isReplyToBot) {
+            await message.channel.sendTyping();
+
+            const userData = await users.findOne({ userId: message.author.id });
+            const userName = userData?.memory?.name || "يا باشا";
+
+            let prompt = message.content
+                .replace(new RegExp(`<@!?${client.user.id}>`, "g"), "")
+                .trim();
+
+            if (!prompt && message.reference) {
+                try {
+                    const replied = await message.channel.messages.fetch(message.reference.messageId);
+                    prompt = replied.content;
+                } catch {}
+            }
+
+            if (!prompt) prompt = "اتكلم معاه عادي";
+
+            try {
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "openai/gpt-3.5-turbo",
+                        temperature: 0.9,
+                        messages: [
+                            {
+                                role: "system",
+                                content: `انت شاب مصري بتتكلم طبيعي جدًا زي صحابك. اسم الشخص: ${userName}. لو تعرف اسمه استخدمه. اتكلم بالمصري بس. خليك روش وطبيعي ومتستخدمش حروف إنجليزية.`
+                            },
+                            {
+                                role: "user",
+                                content: `"${prompt}"`
+                            }
+                        ]
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!data.choices) {
+                    console.error("❌ OPENROUTER ERROR:", data);
+                    return message.reply("❌ **AI_ERROR:** عذرًا، حدث خطأ في الاتصال بالذكاء الاصطناعي.");
+                }
+
+                let reply = data.choices[0].message.content;
+                reply = reply.replace(/[A-Za-z]/g, "");
+
+                if (reply.length > 2000) {
+                    reply = reply.substring(0, 1997) + "...";
+                }
+
+                return message.reply(`🤖 ${reply}`);
+
+            } catch (err) {
+                console.error("❌ AI_SYSTEM_ERROR:", err);
+                return message.reply("❌ **AI_ERROR:** حدث خطأ في معالجة طلبك، حاول مرة أخرى.");
+            }
         }
 
         // ================== [ 👑 أوامر الاونر فقط ] ==================
@@ -177,4 +315,3 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(TOKEN);
-
