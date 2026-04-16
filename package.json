@@ -1,7 +1,7 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "Devil Bot 😈",
+  "description": "Devil Bot with AI 😈",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
